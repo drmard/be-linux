@@ -37,6 +37,7 @@
 #define BE_ISR1_MASK		0x7f
 #define BE_ISR1_FER		BIT(2)
 #define BE_ISR1_RNK		BIT(3)
+#define BE_ISR1_ALD		BIT(4)
 #define BE_ISR1_TCS		BIT(6)
 
 #define BE_SMBUS_IMR1		0x24
@@ -51,11 +52,14 @@ struct be_smbus_dev {
 	struct clk		*smbus_clk;
 	struct i2c_adapter	adapter;
 	u32			bus_clk_rate;
+	u64			smbus_clk_rate;
 };
 
 static int be_smbus_init(struct be_smbus_dev *besmb)
 {
-	u32 divider = clk_get_rate(besmb->smbus_clk) / besmb->bus_clk_rate - 1;
+	u32 divider = (besmb->smbus_clk_rate == 0 ?
+		clk_get_rate(besmb->smbus_clk) :
+		besmb->smbus_clk_rate) / besmb->bus_clk_rate - 1;
 
 	writel(BE_CR1_IRT, besmb->base + BE_SMBUS_CR1);
 	writel(0, besmb->base + BE_SMBUS_CR1);
@@ -71,8 +75,8 @@ static int be_smbus_init(struct be_smbus_dev *besmb)
 }
 
 static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
-				unsigned short flags, char read_write,
-				u8 command, int size, union i2c_smbus_data *data)
+			unsigned short flags, char read_write,
+			u8 command, int size, union i2c_smbus_data *data)
 {
 	struct be_smbus_dev *const besmb = adap->dev.driver_data;
 	int ret = -EINVAL;
@@ -96,9 +100,11 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 		writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
 		while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-			!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+			!(readl(besmb->base + BE_SMBUS_ISR1) &
+				(BE_ISR1_TCS | BE_ISR1_ALD | BE_ISR1_RNK)));
 
-		if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
+		if (readl(besmb->base + BE_SMBUS_ISR1) &
+				(BE_ISR1_ALD | BE_ISR1_RNK)) {
 			ret = -ENXIO;
 			goto exit;
 		}
@@ -133,9 +139,11 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 		writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
 		while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-			!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+			!(readl(besmb->base + BE_SMBUS_ISR1) &
+				(BE_ISR1_TCS | BE_ISR1_ALD | BE_ISR1_RNK)));
 
-		if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
+		if (readl(besmb->base + BE_SMBUS_ISR1) &
+				(BE_ISR1_ALD | BE_ISR1_RNK)) {
 			ret = -ENXIO;
 			goto exit;
 		}
@@ -147,9 +155,11 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 			writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
 			while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-				!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+				!(readl(besmb->base + BE_SMBUS_ISR1) &
+					(BE_ISR1_TCS | BE_ISR1_ALD | BE_ISR1_RNK)));
 
-			if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
+			if (readl(besmb->base + BE_SMBUS_ISR1) &
+					(BE_ISR1_ALD | BE_ISR1_RNK)) {
 				ret = -ENXIO;
 				goto exit;
 			}
@@ -185,9 +195,11 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 		writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
 		while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-			!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+			!(readl(besmb->base + BE_SMBUS_ISR1) &
+				(BE_ISR1_TCS | BE_ISR1_ALD | BE_ISR1_RNK)));
 
-		if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
+		if (readl(besmb->base + BE_SMBUS_ISR1) &
+				(BE_ISR1_ALD | BE_ISR1_RNK)) {
 			ret = -ENXIO;
 			goto exit;
 		}
@@ -199,9 +211,11 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 			writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
 			while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-				!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+				!(readl(besmb->base + BE_SMBUS_ISR1) &
+					(BE_ISR1_TCS | BE_ISR1_ALD | BE_ISR1_RNK)));
 
-			if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
+			if (readl(besmb->base + BE_SMBUS_ISR1) &
+					(BE_ISR1_ALD| BE_ISR1_RNK)) {
 				ret = -ENXIO;
 				goto exit;
 			}
@@ -258,9 +272,11 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 				writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
 				while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-					!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+					!(readl(besmb->base + BE_SMBUS_ISR1) &
+						(BE_ISR1_TCS | BE_ISR1_ALD | BE_ISR1_RNK)));
 
-				if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
+				if (readl(besmb->base + BE_SMBUS_ISR1) &
+						(BE_ISR1_ALD | BE_ISR1_RNK)) {
 					ret = -ENXIO;
 					goto exit;
 				}
@@ -274,9 +290,11 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 			writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
 			while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-				!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+				!(readl(besmb->base + BE_SMBUS_ISR1) &
+					(BE_ISR1_TCS | BE_ISR1_ALD | BE_ISR1_RNK)));
 
-			if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
+			if (readl(besmb->base + BE_SMBUS_ISR1) &
+					(BE_ISR1_ALD | BE_ISR1_RNK)) {
 				ret = -ENXIO;
 				goto exit;
 			}
@@ -291,9 +309,11 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 				writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
 				while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-					!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+					!(readl(besmb->base + BE_SMBUS_ISR1) &
+						(BE_ISR1_TCS | BE_ISR1_ALD | BE_ISR1_RNK)));
 
-				if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
+				if (readl(besmb->base + BE_SMBUS_ISR1) &
+						(BE_ISR1_ALD | BE_ISR1_RNK)) {
 					ret = -ENXIO;
 					goto exit;
 				}
@@ -302,7 +322,8 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 					data->block[1 + rxedsize++] =
 						readl(besmb->base + BE_SMBUS_FIFO);
 
-					if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_FER) {
+					if (readl(besmb->base + BE_SMBUS_ISR1) &
+							BE_ISR1_FER) {
 						ret = -EMSGSIZE;
 						goto exit;
 					}
@@ -342,9 +363,7 @@ static irqreturn_t be_smbus_isr(int irq, void *_dev)
 
 static int be_smbus_probe(struct platform_device *pdev)
 {
-	struct device_node *np = pdev->dev.of_node;
 	struct be_smbus_dev *besmb;
-	struct resource *res;
 	void __iomem *base;
 	int irq;
 	int ret;
@@ -354,8 +373,7 @@ static int be_smbus_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	base = devm_ioremap_resource(&pdev->dev, res);
+	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base)) {
 		return PTR_ERR(base);
 	}
@@ -366,16 +384,33 @@ static int be_smbus_probe(struct platform_device *pdev)
 		return irq;
 	}
 
-	besmb->smbus_clk = devm_clk_get(&pdev->dev, NULL);
-	if (IS_ERR(besmb->smbus_clk)) {
-		dev_err(&pdev->dev, "missing clock\n");
-		return PTR_ERR(besmb->smbus_clk);
+	if (dev_of_node(&pdev->dev)) {
+		besmb->smbus_clk = devm_clk_get(&pdev->dev, NULL);
+		if (IS_ERR(besmb->smbus_clk)) {
+			dev_err(&pdev->dev, "missing clock\n");
+			return PTR_ERR(besmb->smbus_clk);
+		}
+
+		ret = clk_prepare_enable(besmb->smbus_clk);
+		if (ret) {
+			dev_err(&pdev->dev, "failed to enable clock\n");
+			return ret;
+		}
+
+		besmb->smbus_clk_rate = 0;
+#ifdef CONFIG_ACPI
+	} else if (to_acpi_device_node(pdev->dev.fwnode) &&
+			acpi_evaluate_integer (to_acpi_device_node(pdev->dev.fwnode)->handle,
+				"CLK", NULL, &besmb->smbus_clk_rate)) {
+		dev_err(&pdev->dev, "missing clock-frequency value\n");
+		return -EINVAL;
+#endif
 	}
 
 	besmb->base = base;
 	besmb->dev = &pdev->dev;
 
-	of_property_read_u32(np, "clock-frequency", &besmb->bus_clk_rate);
+	device_property_read_u32(&pdev->dev, "clock-frequency", &besmb->bus_clk_rate);
 	if (!besmb->bus_clk_rate) {
 		besmb->bus_clk_rate = 100000; /* default clock rate */
 	}
@@ -386,34 +421,38 @@ static int be_smbus_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = clk_prepare_enable(besmb->smbus_clk);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to enable clock\n");
-		return ret;
-	}
-
 	i2c_set_adapdata(&besmb->adapter, besmb);
 	strlcpy(besmb->adapter.name, pdev->name, sizeof(besmb->adapter.name));
 	besmb->adapter.owner = THIS_MODULE;
 	besmb->adapter.algo = &be_smbus_algorithm;
 	besmb->adapter.dev.parent = &pdev->dev;
-	besmb->adapter.dev.of_node = pdev->dev.of_node;
+	if (dev_of_node(&pdev->dev)) {
+		besmb->adapter.dev.of_node = pdev->dev.of_node;
+	} else {
+		besmb->adapter.dev.fwnode = pdev->dev.fwnode;
+	}
 
 	platform_set_drvdata(pdev, besmb);
 
 	ret = be_smbus_init(besmb);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to init SMBus\n");
-		return ret;
+		goto err_clk;
 	}
 
 	ret = i2c_add_adapter(&besmb->adapter);
 	if (ret) {
-		clk_disable_unprepare(besmb->smbus_clk);
-		return ret;
+		goto err_clk;
 	}
 
 	return 0;
+
+err_clk:
+	if (dev_of_node(&pdev->dev)) {
+		clk_disable_unprepare(besmb->smbus_clk);
+	}
+
+	return ret;
 }
 
 static int be_smbus_remove(struct platform_device *pdev)

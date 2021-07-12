@@ -140,8 +140,7 @@ static void baikal_vdu_crtc_helper_mode_set_nofb(struct drm_crtc *crtc)
 
 	rate = mode->clock * 1000;
 
-	if (rate != clk_get_rate(priv->clk))
-	{
+	if (rate != clk_get_rate(priv->clk)) {
 		DRM_DEV_DEBUG_DRIVER(dev->dev, "Requested pixel clock is %lu Hz\n", rate);
 
 		/* hold clock domain reset; disable clocking */
@@ -167,7 +166,7 @@ static void baikal_vdu_crtc_helper_mode_set_nofb(struct drm_crtc *crtc)
 		DRM_ERROR("Cannot set desired pixel clock (%lu Hz)\n", rate);
 
 	ppl = mode->hdisplay / 16;
-	if (priv->panel) {
+	if (priv->panel && priv-> ep_count == 2) {
 		hsw = mode->hsync_end - mode->hsync_start;
 		hfp = mode->hsync_start - mode->hdisplay - 1;
 	} else {
@@ -222,6 +221,17 @@ static void baikal_vdu_crtc_helper_mode_set_nofb(struct drm_crtc *crtc)
 	crtc->hwmode = crtc->state->adjusted_mode;
 }
 
+static enum drm_mode_status baikal_vdu_mode_valid(struct drm_crtc *crtc,
+	                const struct drm_display_mode *mode)
+{
+	struct baikal_vdu_private *priv = crtc->dev->dev_private;
+	if (!priv->mode_override && (mode->hdisplay > 2560 ||
+			mode->vdisplay > 1440))
+		return MODE_BAD;
+	else
+		return MODE_OK;
+}
+
 static void baikal_vdu_crtc_helper_enable(struct drm_crtc *crtc,
 					  struct drm_crtc_state *old_state)
 {
@@ -241,16 +251,16 @@ static void baikal_vdu_crtc_helper_enable(struct drm_crtc *crtc,
 	/* Set 16-word input FIFO watermark */
 	/* Enable and Power Up */
 	cntl = readl(priv->regs + CR1);
-	cntl &= ~CR1_FDW_MASK;
-	cntl |= CR1_LCE + CR1_FDW_16_WORDS;
+	cntl &= ~(CR1_FDW_MASK | CR1_OPS_MASK);
+	cntl |= CR1_LCE | CR1_FDW_16_WORDS;
 
 	if (priv->type == VDU_TYPE_LVDS) {
 		panel_node = panel->dev->of_node;
 		if (of_property_read_string(panel_node, "data-mapping", &data_mapping)) {
 			cntl |= CR1_OPS_LCD18;
-		} else if (strncmp(data_mapping, "vesa-24", 7))
+		} else if (!strncmp(data_mapping, "vesa-24", 7))
 			cntl |= CR1_OPS_LCD24;
-		else if (strncmp(data_mapping, "jeida-18", 8))
+		else if (!strncmp(data_mapping, "jeida-18", 8))
 			cntl |= CR1_OPS_LCD18;
 		else {
 			dev_warn(crtc->dev->dev, "%s data mapping is not supported, vesa-24 is set\n", data_mapping);
@@ -339,9 +349,11 @@ const struct drm_crtc_funcs crtc_funcs = {
 const struct drm_crtc_helper_funcs crtc_helper_funcs = {
 	.mode_fixup = baikal_vdu_crtc_mode_fixup,
 	.mode_set_nofb = baikal_vdu_crtc_helper_mode_set_nofb,
+	.mode_valid = baikal_vdu_mode_valid,
 	.atomic_flush = baikal_vdu_crtc_helper_atomic_flush,
 	.disable = baikal_vdu_crtc_helper_disable,
 	.atomic_enable = baikal_vdu_crtc_helper_enable,
+
 };
 
 int baikal_vdu_crtc_create(struct drm_device *dev)
