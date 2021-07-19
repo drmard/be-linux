@@ -1,19 +1,21 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * Poly1305 authenticator algorithm, RFC7539, x64 AVX2 functions
  *
  * Copyright (C) 2015 Martin Willi
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
 #include <linux/linkage.h>
 
-.section	.rodata.cst32.ANMASK, "aM", @progbits, 32
+.data
 .align 32
+
 ANMASK:	.octa 0x0000000003ffffff0000000003ffffff
 	.octa 0x0000000003ffffff0000000003ffffff
-
-.section	.rodata.cst32.ORMASK, "aM", @progbits, 32
-.align 32
 ORMASK:	.octa 0x00000000010000000000000001000000
 	.octa 0x00000000010000000000000001000000
 

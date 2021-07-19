@@ -23,6 +23,10 @@
 static struct snd_soc_dai_link snd_be_dai = {
 	.name = "dw_i2s",
 	.stream_name = "dw_i2s",
+	.cpu_dai_name = "designware-i2s",
+	.codec_name = "tlv320aic3x-codec",
+	.platform_name = "designware-i2s",
+	.codec_dai_name = "tlv320aic3x-hifi",
 	.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 		SND_SOC_DAIFMT_CBM_CFM,
 };
@@ -39,8 +43,6 @@ static int snd_soc_be_probe(struct platform_device *pdev)
 	int ret;
 	struct device_node *np = pdev->dev.of_node;
 	struct device_node *codec_np, *be_np;
-	struct snd_soc_dai_link_component *comp;
-
 	snd_be_card.dev = &pdev->dev;
 
 	be_np = of_parse_phandle(np, "baikal,cpu-dai", 0);
@@ -48,23 +50,19 @@ static int snd_soc_be_probe(struct platform_device *pdev)
 
 	if (!(be_np && codec_np)) {
 		dev_err(&pdev->dev, "Phandle missing or invalid\n");
+		of_node_put(snd_be_dai.cpu_of_node);
+		of_node_put(snd_be_dai.codec_of_node);
 		return -EINVAL;
 	}
-	/* for cpus/codecs/platforms */
-	comp = devm_kzalloc(&pdev->dev, 3 * sizeof(*comp), GFP_KERNEL);
-	if (!comp)
-		return -ENOMEM;
 
-	snd_be_dai.cpus = &comp[0];
-	snd_be_dai.num_cpus = 1;
-	snd_be_dai.codecs = &comp[1];
-	snd_be_dai.num_codecs = 1;
-	snd_be_dai.platforms = &comp[2];
-	snd_be_dai.num_platforms = 1;
 
-	snd_be_dai.codecs->of_node = codec_np;
-	snd_be_dai.cpus->of_node = be_np;
-	snd_be_dai.platforms->of_node = be_np;
+	snd_be_dai.cpu_of_node = be_np;
+	snd_be_dai.cpu_dai_name = NULL;
+	snd_be_dai.platform_of_node = be_np;
+	snd_be_dai.platform_name = NULL;
+	snd_be_dai.codec_of_node = codec_np;
+	snd_be_dai.codec_name = NULL;
+
 
 	snd_soc_of_parse_card_name(&snd_be_card, "baikal,card-name");
 

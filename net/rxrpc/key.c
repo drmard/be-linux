@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /* RxRPC key management
  *
  * Copyright (C) 2007 Red Hat, Inc. All Rights Reserved.
  * Written by David Howells (dhowells@redhat.com)
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version
+ * 2 of the License, or (at your option) any later version.
  *
  * RxRPC keys should have a description of describing their purpose:
  *	"afs@CAMBRIDGE.REDHAT.COM>
@@ -31,7 +35,7 @@ static void rxrpc_free_preparse_s(struct key_preparsed_payload *);
 static void rxrpc_destroy(struct key *);
 static void rxrpc_destroy_s(struct key *);
 static void rxrpc_describe(const struct key *, struct seq_file *);
-static long rxrpc_read(const struct key *, char *, size_t);
+static long rxrpc_read(const struct key *, char __user *, size_t);
 
 /*
  * rxrpc defined keys take an arbitrary string as the description and an
@@ -39,7 +43,6 @@ static long rxrpc_read(const struct key *, char *, size_t);
  */
 struct key_type key_type_rxrpc = {
 	.name		= "rxrpc",
-	.flags		= KEY_TYPE_NET_DOMAIN,
 	.preparse	= rxrpc_preparse,
 	.free_preparse	= rxrpc_free_preparse,
 	.instantiate	= generic_key_instantiate,
@@ -55,7 +58,6 @@ EXPORT_SYMBOL(key_type_rxrpc);
  */
 struct key_type key_type_rxrpc_s = {
 	.name		= "rxrpc_s",
-	.flags		= KEY_TYPE_NET_DOMAIN,
 	.vet_description = rxrpc_vet_description_s,
 	.preparse	= rxrpc_preparse_s,
 	.free_preparse	= rxrpc_free_preparse_s,
@@ -90,7 +92,6 @@ static int rxrpc_preparse_xdr_rxkad(struct key_preparsed_payload *prep,
 				    const __be32 *xdr, unsigned int toklen)
 {
 	struct rxrpc_key_token *token, **pptoken;
-	time64_t expiry;
 	size_t plen;
 	u32 tktlen;
 
@@ -157,9 +158,8 @@ static int rxrpc_preparse_xdr_rxkad(struct key_preparsed_payload *prep,
 	     pptoken = &(*pptoken)->next)
 		continue;
 	*pptoken = token;
-	expiry = rxrpc_u32_to_time64(token->kad->expiry);
-	if (expiry < prep->expiry)
-		prep->expiry = expiry;
+	if (token->kad->expiry < prep->expiry)
+		prep->expiry = token->kad->expiry;
 
 	_leave(" = 0");
 	return 0;
@@ -433,7 +433,6 @@ static int rxrpc_preparse_xdr_rxk5(struct key_preparsed_payload *prep,
 	struct rxrpc_key_token *token, **pptoken;
 	struct rxk5_key *rxk5;
 	const __be32 *end_xdr = xdr + (toklen >> 2);
-	time64_t expiry;
 	int ret;
 
 	_enter(",{%x,%x,%x,%x},%u",
@@ -534,9 +533,8 @@ static int rxrpc_preparse_xdr_rxk5(struct key_preparsed_payload *prep,
 	     pptoken = &(*pptoken)->next)
 		continue;
 	*pptoken = token;
-	expiry = rxrpc_u32_to_time64(token->k5->endtime);
-	if (expiry < prep->expiry)
-		prep->expiry = expiry;
+	if (token->kad->expiry < prep->expiry)
+		prep->expiry = token->kad->expiry;
 
 	_leave(" = 0");
 	return 0;
@@ -693,7 +691,6 @@ static int rxrpc_preparse(struct key_preparsed_payload *prep)
 {
 	const struct rxrpc_key_data_v1 *v1;
 	struct rxrpc_key_token *token, **pp;
-	time64_t expiry;
 	size_t plen;
 	u32 kver;
 	int ret;
@@ -780,9 +777,8 @@ static int rxrpc_preparse(struct key_preparsed_payload *prep)
 	while (*pp)
 		pp = &(*pp)->next;
 	*pp = token;
-	expiry = rxrpc_u32_to_time64(token->kad->expiry);
-	if (expiry < prep->expiry)
-		prep->expiry = expiry;
+	if (token->kad->expiry < prep->expiry)
+		prep->expiry = token->kad->expiry;
 	token = NULL;
 	ret = 0;
 
@@ -903,14 +899,14 @@ int rxrpc_request_key(struct rxrpc_sock *rx, char __user *optval, int optlen)
 
 	_enter("");
 
-	if (optlen <= 0 || optlen > PAGE_SIZE - 1 || rx->securities)
+	if (optlen <= 0 || optlen > PAGE_SIZE - 1)
 		return -EINVAL;
 
 	description = memdup_user_nul(optval, optlen);
 	if (IS_ERR(description))
 		return PTR_ERR(description);
 
-	key = request_key_net(&key_type_rxrpc, description, sock_net(&rx->sk), NULL);
+	key = request_key(&key_type_rxrpc, description, NULL);
 	if (IS_ERR(key)) {
 		kfree(description);
 		_leave(" = %ld", PTR_ERR(key));
@@ -959,7 +955,7 @@ int rxrpc_server_keyring(struct rxrpc_sock *rx, char __user *optval,
  */
 int rxrpc_get_server_data_key(struct rxrpc_connection *conn,
 			      const void *session_key,
-			      time64_t expiry,
+			      time_t expiry,
 			      u32 kvno)
 {
 	const struct cred *cred = current_cred();
@@ -986,7 +982,7 @@ int rxrpc_get_server_data_key(struct rxrpc_connection *conn,
 	data.kver = 1;
 	data.v1.security_index = RXRPC_SECURITY_RXKAD;
 	data.v1.ticket_length = 0;
-	data.v1.expiry = rxrpc_time64_to_u32(expiry);
+	data.v1.expiry = expiry;
 	data.v1.kvno = 0;
 
 	memcpy(&data.v1.session_key, session_key, sizeof(data.v1.session_key));
@@ -1042,12 +1038,12 @@ EXPORT_SYMBOL(rxrpc_get_null_key);
  * - this returns the result in XDR form
  */
 static long rxrpc_read(const struct key *key,
-		       char *buffer, size_t buflen)
+		       char __user *buffer, size_t buflen)
 {
 	const struct rxrpc_key_token *token;
 	const struct krb5_principal *princ;
 	size_t size;
-	__be32 *xdr, *oldxdr;
+	__be32 __user *xdr, *oldxdr;
 	u32 cnlen, toksize, ntoks, tok, zero;
 	u16 toksizes[AFSTOKEN_MAX];
 	int loop;
@@ -1108,9 +1104,8 @@ static long rxrpc_read(const struct key *key,
 			break;
 
 		default: /* we have a ticket we can't encode */
-			pr_err("Unsupported key token type (%u)\n",
-			       token->security_index);
-			return -ENOPKG;
+			BUG();
+			continue;
 		}
 
 		_debug("token[%u]: toksize=%u", ntoks, toksize);
@@ -1125,33 +1120,30 @@ static long rxrpc_read(const struct key *key,
 	if (!buffer || buflen < size)
 		return size;
 
-	xdr = (__be32 *)buffer;
+	xdr = (__be32 __user *) buffer;
 	zero = 0;
 #define ENCODE(x)				\
 	do {					\
-		*xdr++ = htonl(x);		\
+		__be32 y = htonl(x);		\
+		if (put_user(y, xdr++) < 0)	\
+			goto fault;		\
 	} while(0)
 #define ENCODE_DATA(l, s)						\
 	do {								\
 		u32 _l = (l);						\
 		ENCODE(l);						\
-		memcpy(xdr, (s), _l);					\
-		if (_l & 3)						\
-			memcpy((u8 *)xdr + _l, &zero, 4 - (_l & 3));	\
-		xdr += (_l + 3) >> 2;					\
-	} while(0)
-#define ENCODE_BYTES(l, s)						\
-	do {								\
-		u32 _l = (l);						\
-		memcpy(xdr, (s), _l);					\
-		if (_l & 3)						\
-			memcpy((u8 *)xdr + _l, &zero, 4 - (_l & 3));	\
+		if (copy_to_user(xdr, (s), _l) != 0)			\
+			goto fault;					\
+		if (_l & 3 &&						\
+		    copy_to_user((u8 __user *)xdr + _l, &zero, 4 - (_l & 3)) != 0) \
+			goto fault;					\
 		xdr += (_l + 3) >> 2;					\
 	} while(0)
 #define ENCODE64(x)					\
 	do {						\
 		__be64 y = cpu_to_be64(x);		\
-		memcpy(xdr, &y, 8);			\
+		if (copy_to_user(xdr, &y, 8) != 0)	\
+			goto fault;			\
 		xdr += 8 >> 2;				\
 	} while(0)
 #define ENCODE_STR(s)				\
@@ -1175,7 +1167,7 @@ static long rxrpc_read(const struct key *key,
 		case RXRPC_SECURITY_RXKAD:
 			ENCODE(token->kad->vice_id);
 			ENCODE(token->kad->kvno);
-			ENCODE_BYTES(8, token->kad->session_key);
+			ENCODE_DATA(8, token->kad->session_key);
 			ENCODE(token->kad->start);
 			ENCODE(token->kad->expiry);
 			ENCODE(token->kad->primary_flag);
@@ -1225,9 +1217,8 @@ static long rxrpc_read(const struct key *key,
 			break;
 
 		default:
-			pr_err("Unsupported key token type (%u)\n",
-			       token->security_index);
-			return -ENOPKG;
+			BUG();
+			break;
 		}
 
 		ASSERTCMP((unsigned long)xdr - (unsigned long)oldxdr, ==,
@@ -1243,4 +1234,8 @@ static long rxrpc_read(const struct key *key,
 	ASSERTCMP((char __user *) xdr - buffer, ==, size);
 	_leave(" = %zu", size);
 	return size;
+
+fault:
+	_leave(" = -EFAULT");
+	return -EFAULT;
 }

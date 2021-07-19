@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * linux/drivers/mmc/core/sdio_cis.c
  *
@@ -7,6 +6,11 @@
  * Copyright:	MontaVista Software Inc.
  *
  * Copyright 2007 Pierre Ossman
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or (at
+ * your option) any later version.
  */
 
 #include <linux/kernel.h>
@@ -25,9 +29,6 @@ static int cistpl_vers_1(struct mmc_card *card, struct sdio_func *func,
 {
 	unsigned i, nr_strings;
 	char **buffer, *string;
-
-	if (size < 2)
-		return 0;
 
 	/* Find all null-terminated (including zero length) strings in
 	   the TPLLV1_INFO field. Trailing garbage is ignored. */
@@ -261,8 +262,7 @@ static int sdio_read_cis(struct mmc_card *card, struct sdio_func *func)
 	else
 		prev = &card->tuples;
 
-	if (*prev)
-		return -EINVAL;
+	BUG_ON(*prev);
 
 	do {
 		unsigned char tpl_code, tpl_link;

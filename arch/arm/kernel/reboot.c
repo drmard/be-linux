@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  Copyright (C) 1996-2000 Russell King - Converted to ARM.
  *  Original Copyright (C) 1995  Linus Torvalds
+ * 
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #include <linux/cpu.h>
 #include <linux/delay.h>
@@ -9,11 +12,10 @@
 
 #include <asm/cacheflush.h>
 #include <asm/idmap.h>
-#include <asm/virt.h>
 
 #include "reboot.h"
 
-typedef void (*phys_reset_t)(unsigned long, bool);
+typedef void (*phys_reset_t)(unsigned long);
 
 /*
  * Function pointers to optional machine specific functions
@@ -49,9 +51,7 @@ static void __soft_restart(void *addr)
 
 	/* Switch to the identity mapping. */
 	phys_reset = (phys_reset_t)virt_to_idmap(cpu_reset);
-
-	/* original stub should be restored by kvm */
-	phys_reset((unsigned long)addr, is_hyp_mode_available());
+	phys_reset((unsigned long)addr);
 
 	/* Should never get here. */
 	BUG();

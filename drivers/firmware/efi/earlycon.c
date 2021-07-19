@@ -57,7 +57,8 @@ static __ref void *efi_earlycon_map(unsigned long start, unsigned long len)
 		return efi_fb + start;
 
 	fb_prot = fb_wb ? PAGE_KERNEL : pgprot_writecombine(PAGE_KERNEL);
-	return early_memremap_prot(fb_base + start, len, pgprot_val(fb_prot));
+//	return early_memremap_prot(fb_base + start, len, pgprot_val(fb_prot));
+	return early_memremap(fb_base + start, len);
 }
 
 static __ref void efi_earlycon_unmap(void *addr, unsigned long len)

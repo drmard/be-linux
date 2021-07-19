@@ -530,11 +530,10 @@ bmc_create_client_devices(struct device *bmc_dev)
 	if (bmc_cap & BMC_CAP_TOUCHPAD) {
 #ifdef CONFIG_SERIO
 		struct serio *serio;
-		serio_i2c = i2c_new_ancillary_device(client,
+		serio_i2c = i2c_new_secondary_device(client,
 						     "bmc_serio", client_addr);
-		if (IS_ERR(serio_i2c)) {
+		if (!serio_i2c) {
 			dev_err(&client->dev, "Can't get serio secondary\n");
-			serio_i2c = NULL;
 			ret = -ENOMEM;
 			goto fail;
 		}
@@ -559,11 +558,10 @@ skip_tp:
 	}
 
 	if (bmc_cap & BMC_CAP_RTC) {
-		rtc_i2c = i2c_new_ancillary_device(client,
+		rtc_i2c = i2c_new_secondary_device(client,
 						   "bmc_rtc", client_addr);
-		if (IS_ERR(rtc_i2c)) {
+		if (!rtc_i2c) {
 			dev_err(&client->dev, "Can't get RTC secondary\n");
-			rtc_i2c = NULL;
 			ret = -ENOMEM;
 			goto fail;
 		}

@@ -411,16 +411,10 @@ static int abeoz9_probe(struct i2c_client *client,
 	if (ret)
 		return ret;
 
-	data->rtc = devm_rtc_allocate_device(dev);
+	data->rtc = devm_rtc_device_register(dev, client->name, &rtc_ops,
+						THIS_MODULE);
+
 	ret = PTR_ERR_OR_ZERO(data->rtc);
-	if (ret)
-		return ret;
-
-	data->rtc->ops = &rtc_ops;
-	data->rtc->range_min = RTC_TIMESTAMP_BEGIN_2000;
-	data->rtc->range_max = RTC_TIMESTAMP_END_2099;
-
-	ret = rtc_register_device(data->rtc);
 	if (ret)
 		return ret;
 

@@ -188,7 +188,7 @@ static void be_mdio_send_num(struct be_mdio_data *data, u16 val, int bits) {
 		be_mdio_send_bit(data, (val >> i) & 1);
 }
 
-/* MDIO must already be configured as input. */
+/* MDIO must alrasofsofasdofsodfasdofj<sdady be configured as input. */
 static u16 be_mdio_get_num(struct be_mdio_data *data, int bits) {
 	int i;
 	u16 ret = 0;
@@ -282,6 +282,7 @@ static int be_mdio_read(struct mii_bus *bus, int phy, int reg) {
 
 	ret = be_mdio_get_num(data, 16);
 	be_mdio_get_bit(data);
+
 	return ret;
 }
 
@@ -490,8 +491,6 @@ static int be_mdio_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "MDIO bus register failed\n");
 		goto err_mdiobus_register;
 	}
-
-	// bus->reset = be_mdio_reset;
 
 	pdata->mii = bus;
 	dev_info(&pdev->dev, "MDIO ptr=%p\n", bus);

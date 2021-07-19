@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #include <asm/asm-offsets.h>
 #include <asm/thread_info.h>
 
@@ -72,7 +71,7 @@ SECTIONS
 	/* Exception table for data bus errors */
 	__dbe_table : {
 		__start___dbe_table = .;
-		KEEP(*(__dbe_table))
+		*(__dbe_table)
 		__stop___dbe_table = .;
 	}
 
@@ -98,7 +97,6 @@ SECTIONS
 		DATA_DATA
 		CONSTRUCTORS
 	}
-	BUG_TABLE
 	_gp = . + 0x8000;
 	.lit8 : {
 		*(.lit8)
@@ -123,7 +121,7 @@ SECTIONS
 	. = ALIGN(4);
 	.mips.machines.init : AT(ADDR(.mips.machines.init) - LOAD_OFFSET) {
 		__mips_machines_start = .;
-		KEEP(*(.mips.machines.init))
+		*(.mips.machines.init)
 		__mips_machines_end = .;
 	}
 

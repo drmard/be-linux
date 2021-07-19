@@ -1,6 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019-2021 Baikal Electronics JSC
+ * Copyright (C) 2019-2020 Baikal Electronics JSC
  *
  * Author: Pavel Parkhomenko <Pavel.Parkhomenko@baikalelectronics.ru>
  *
@@ -23,15 +22,14 @@
  * Implementation of the CRTC functions for Baikal Electronics BE-M1000 VDU driver
  */
 #include <linux/clk.h>
-#include <linux/clk-provider.h>
 #include <linux/version.h>
 #include <linux/shmem_fs.h>
 #include <linux/dma-buf.h>
 
+#include <drm/drmP.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_panel.h>
-#include <drm/drm_vblank.h>
 
 #include "baikal_vdu_drm.h"
 #include "baikal_vdu_regs.h"
@@ -69,7 +67,6 @@ irqreturn_t baikal_vdu_irq(int irq, void *data)
 	irq_stat = readl(priv->regs + IVR);
 	raw_stat = readl(priv->regs + ISR);
 
-
 	if (irq_stat & INTR_VCT) {
 		priv->counters[10]++;
 		drm_crtc_handle_vblank(&priv->crtc);
@@ -90,6 +87,12 @@ irqreturn_t baikal_vdu_irq(int irq, void *data)
 	writel(irq_stat, priv->regs + ISR);
 
 	return status;
+}
+
+static int baikal_vdu_crtc_atomic_check(struct drm_crtc *crtc,
+				   struct drm_crtc_state *state)
+{
+	return 0;
 }
 
 bool baikal_vdu_crtc_mode_fixup(struct drm_crtc *crtc,
@@ -129,51 +132,16 @@ static void baikal_vdu_crtc_helper_mode_set_nofb(struct drm_crtc *crtc)
 	struct baikal_vdu_private *priv = dev->dev_private;
 	const struct drm_display_mode *orig_mode = &crtc->state->mode;
 	const struct drm_display_mode *mode = &crtc->state->adjusted_mode;
-	unsigned long rate;
 	unsigned int ppl, hsw, hfp, hbp;
 	unsigned int lpp, vsw, vfp, vbp;
 	unsigned int reg;
-	int ret = 0;
 
 	drm_mode_debug_printmodeline(orig_mode);
 	drm_mode_debug_printmodeline(mode);
 
-	rate = mode->clock * 1000;
-
-	if (rate != clk_get_rate(priv->clk))
-	{
-		DRM_DEV_DEBUG_DRIVER(dev->dev, "Requested pixel clock is %lu Hz\n", rate);
-
-		/* hold clock domain reset; disable clocking */
-		writel(0, priv->regs + PCTR);
-
-		if (__clk_is_enabled(priv->clk))
-			clk_disable_unprepare(priv->clk);
-		ret = clk_set_rate(priv->clk, rate);
-
-		if (ret >= 0) {
-			clk_prepare_enable(priv->clk);
-			if (!__clk_is_enabled(priv->clk))
-				ret = -1;
-		}
-
-		/* release clock domain reset; enable clocking */
-		reg = readl(priv->regs + PCTR);
-		reg |= PCTR_PCR + PCTR_PCI;
-		writel(reg, priv->regs + PCTR);
-	}
-
-	if (ret < 0)
-		DRM_ERROR("Cannot set desired pixel clock (%lu Hz)\n", rate);
-
 	ppl = mode->hdisplay / 16;
-	if (priv->panel) {
-		hsw = mode->hsync_end - mode->hsync_start;
-		hfp = mode->hsync_start - mode->hdisplay - 1;
-	} else {
-		hsw = mode->hsync_end - mode->hsync_start - 1;
-		hfp = mode->hsync_start - mode->hdisplay;
-	}
+	hsw = mode->hsync_end - mode->hsync_start - 1;
+	hfp = mode->hsync_start - mode->hdisplay;
 	hbp = mode->htotal - mode->hsync_end;
 
 	lpp = mode->vdisplay;
@@ -209,77 +177,55 @@ static void baikal_vdu_crtc_helper_mode_set_nofb(struct drm_crtc *crtc)
 	/* Set polarities */
 	reg = readl(priv->regs + CR1);
 	if (mode->flags & DRM_MODE_FLAG_NHSYNC)
-		reg |= CR1_HSP;
-	else
-		reg &= ~CR1_HSP;
-	if (mode->flags & DRM_MODE_FLAG_NVSYNC)
 		reg |= CR1_VSP;
 	else
 		reg &= ~CR1_VSP;
+	if (mode->flags & DRM_MODE_FLAG_NVSYNC)
+		reg |= CR1_HSP;
+	else
+		reg &= ~CR1_HSP;
 	reg |= CR1_DEP; // set DE to active high;
 	writel(reg, priv->regs + CR1);
 
 	crtc->hwmode = crtc->state->adjusted_mode;
 }
 
-static void baikal_vdu_crtc_helper_enable(struct drm_crtc *crtc,
-					  struct drm_crtc_state *old_state)
+static void baikal_vdu_crtc_helper_enable(struct drm_crtc *crtc)
 {
 	struct baikal_vdu_private *priv = crtc->dev->dev_private;
-	struct drm_panel *panel = priv->panel;
-	struct device_node *panel_node;
-	const char *data_mapping;
-	u32 cntl, gpio;
+	u32 cntl;
 
 	DRM_DEV_DEBUG_DRIVER(crtc->dev->dev, "enabling pixel clock\n");
 	clk_prepare_enable(priv->clk);
 
-	drm_panel_prepare(panel);
+	drm_panel_prepare(priv->connector.panel);
 
 	writel(ISCR_VSC_VFP, priv->regs + ISCR);
 
-	/* Set 16-word input FIFO watermark */
+	/* release clock reset; enable clocking */
+	cntl = readl(priv->regs + PCTR);
+	cntl |= PCTR_PCR + PCTR_PCI;
+	writel(cntl, priv->regs + PCTR);
+
+	/* Set 16-word input FIFO watermark and 24-bit LCD interface mode */
 	/* Enable and Power Up */
 	cntl = readl(priv->regs + CR1);
-	cntl &= ~CR1_FDW_MASK;
-	cntl |= CR1_LCE + CR1_FDW_16_WORDS;
-
-	if (priv->type == VDU_TYPE_LVDS) {
-		panel_node = panel->dev->of_node;
-		if (of_property_read_string(panel_node, "data-mapping", &data_mapping)) {
-			cntl |= CR1_OPS_LCD18;
-		} else if (strncmp(data_mapping, "vesa-24", 7))
-			cntl |= CR1_OPS_LCD24;
-		else if (strncmp(data_mapping, "jeida-18", 8))
-			cntl |= CR1_OPS_LCD18;
-		else {
-			dev_warn(crtc->dev->dev, "%s data mapping is not supported, vesa-24 is set\n", data_mapping);
-			cntl |= CR1_OPS_LCD24;
-		}
-		gpio = GPIOR_UHD_ENB;
-		if (priv->ep_count == 4)
-			gpio |= GPIOR_UHD_QUAD_PORT;
-		else if (priv->ep_count == 2)
-			gpio |= GPIOR_UHD_DUAL_PORT;
-		else
-			gpio |= GPIOR_UHD_SNGL_PORT;
-		writel(gpio, priv->regs + GPIOR);
-	} else
-		cntl |= CR1_OPS_LCD24;
+	cntl |= CR1_LCE + CR1_FDW_16_WORDS + CR1_OPS_LCD24;
 	writel(cntl, priv->regs + CR1);
 
-	drm_panel_enable(priv->panel);
-	drm_crtc_vblank_on(crtc);
+	drm_panel_enable(priv->connector.panel);
 }
 
 void baikal_vdu_crtc_helper_disable(struct drm_crtc *crtc)
 {
 	struct baikal_vdu_private *priv = crtc->dev->dev_private;
 
-	drm_panel_disable(priv->panel);
+	drm_panel_disable(priv->connector.panel);
 
-	drm_panel_unprepare(priv->panel);
-	drm_crtc_vblank_off(crtc);
+	/* Disable and Power Down */
+	//writel(0, priv->regs + CR1);
+
+	drm_panel_unprepare(priv->connector.panel);
 
 	/* Disable clock */
 	DRM_DEV_DEBUG_DRIVER(crtc->dev->dev, "disabling pixel clock\n");
@@ -303,9 +249,11 @@ static void baikal_vdu_crtc_helper_atomic_flush(struct drm_crtc *crtc,
 	}
 }
 
-int baikal_vdu_enable_vblank(struct drm_crtc *crtc)
+int baikal_vdu_enable_vblank(struct drm_device *drm, unsigned int crtc)
 {
-	struct baikal_vdu_private *priv = crtc->dev->dev_private;
+	struct baikal_vdu_private *priv = drm->dev_private;
+
+	//clk_prepare_enable(priv->clk);
 
 	/* clear interrupt status */
 	writel(0x3ffff, priv->regs + ISR);
@@ -315,9 +263,9 @@ int baikal_vdu_enable_vblank(struct drm_crtc *crtc)
 	return 0;
 }
 
-void baikal_vdu_disable_vblank(struct drm_crtc *crtc)
+void baikal_vdu_disable_vblank(struct drm_device *drm, unsigned int crtc)
 {
-	struct baikal_vdu_private *priv = crtc->dev->dev_private;
+	struct baikal_vdu_private *priv = drm->dev_private;
 
 	/* clear interrupt status */
 	writel(0x3ffff, priv->regs + ISR);
@@ -332,16 +280,15 @@ const struct drm_crtc_funcs crtc_funcs = {
 	.destroy = drm_crtc_cleanup,
 	.atomic_duplicate_state = drm_atomic_helper_crtc_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_crtc_destroy_state,
-	.enable_vblank = baikal_vdu_enable_vblank,
-	.disable_vblank = baikal_vdu_disable_vblank,
 };
 
 const struct drm_crtc_helper_funcs crtc_helper_funcs = {
 	.mode_fixup = baikal_vdu_crtc_mode_fixup,
 	.mode_set_nofb = baikal_vdu_crtc_helper_mode_set_nofb,
+	.atomic_check = baikal_vdu_crtc_atomic_check,
 	.atomic_flush = baikal_vdu_crtc_helper_atomic_flush,
 	.disable = baikal_vdu_crtc_helper_disable,
-	.atomic_enable = baikal_vdu_crtc_helper_enable,
+	.enable = baikal_vdu_crtc_helper_enable,
 };
 
 int baikal_vdu_crtc_create(struct drm_device *dev)

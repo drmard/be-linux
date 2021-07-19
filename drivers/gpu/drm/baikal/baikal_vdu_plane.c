@@ -1,6 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019-2021 Baikal Electronics JSC
+ * Copyright (C) 2019-2020 Baikal Electronics JSC
  *
  * Author: Pavel Parkhomenko <Pavel.Parkhomenko@baikalelectronics.ru>
  *
@@ -10,37 +9,40 @@
  * Copyright (c) 2007 Dave Airlie <airlied@linux.ie>
  * Copyright (C) 2011 Texas Instruments
  * (C) COPYRIGHT 2012-2013 ARM Limited. All rights reserved.
+ *
+ * This program is free software and is provided to you under the terms of the
+ * GNU General Public License version 2 as published by the Free Software
+ * Foundation, and any use by you of this program is subject to the terms of
+ * such GNU licence.
+ *
  */
 
 #include <linux/arm-smccc.h>
 #include <linux/clk.h>
-#include <linux/delay.h>
+#include <linux/clk-provider.h>
 #include <linux/of_graph.h>
+#include <drm/drmP.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_fb_cma_helper.h>
-#include <drm/drm_fourcc.h>
 #include <drm/drm_gem_cma_helper.h>
-#include <drm/drm_gem_framebuffer_helper.h>
 #include <drm/drm_plane_helper.h>
 
 #include "baikal_vdu_drm.h"
 #include "baikal_vdu_regs.h"
+#include "baikal_vdu_helper.h"
 
-#define BAIKAL_SMC_VDU_UPDATE	0x82000100
+#define BAIKAL_SMC_VDU_UPDATE_HDMI	0x82000100
 
 void baikal_vdu_update_work(struct work_struct *work)
 {
 	struct arm_smccc_res res;
-	unsigned long flags;
 	struct baikal_vdu_private *priv = container_of(work, struct baikal_vdu_private,
 			update_work.work);
 	int count = 0;
 	u64 t1, t2;
 	t1 = read_sysreg(CNTVCT_EL0);
-	spin_lock_irqsave(&priv->lock, flags);
-	arm_smccc_smc(BAIKAL_SMC_VDU_UPDATE, priv->fb_addr, priv->fb_end, 0, 0, 0, 0, 0, &res);
-	spin_unlock_irqrestore(&priv->lock, flags);
+	arm_smccc_smc(BAIKAL_SMC_VDU_UPDATE_HDMI, priv->fb_addr, priv->fb_end, 0, 0, 0, 0, 0, &res);
 	if (res.a0 == -EBUSY)
 		priv->counters[15]++;
 	else
@@ -49,9 +51,7 @@ void baikal_vdu_update_work(struct work_struct *work)
 		count++;
 		usleep_range(10000, 20000);
 		res.a0 = 0;
-		spin_lock_irqsave(&priv->lock, flags);
-		arm_smccc_smc(BAIKAL_SMC_VDU_UPDATE, priv->fb_addr, priv->fb_end, 0, 0, 0, 0, 0, &res);
-		spin_unlock_irqrestore(&priv->lock, flags);
+		arm_smccc_smc(BAIKAL_SMC_VDU_UPDATE_HDMI, priv->fb_addr, priv->fb_end, 0, 0, 0, 0, 0, &res);
 		if (res.a0 == -EBUSY)
 			priv->counters[15]++;
 		else
@@ -63,6 +63,43 @@ void baikal_vdu_update_work(struct work_struct *work)
 	priv->counters[19]++;
 }
 
+static int baikal_vdu_primary_plane_atomic_check(struct drm_plane *plane,
+					    struct drm_plane_state *state)
+{
+	struct drm_device *dev = plane->dev;
+	struct baikal_vdu_private *priv = dev->dev_private;
+	struct drm_crtc_state *crtc_state;
+	struct drm_display_mode *mode;
+	int rate, ret;
+
+	if (!state->crtc)
+		return 0;
+
+	crtc_state = drm_atomic_get_crtc_state(state->state, state->crtc);
+	mode = &crtc_state->adjusted_mode;
+	rate = mode->clock * 1000;
+	if (rate == clk_get_rate(priv->clk))
+		return 0;
+
+	if (__clk_is_enabled(priv->clk))
+		clk_disable_unprepare(priv->clk);
+	ret = clk_set_rate(priv->clk, rate);
+	DRM_DEV_DEBUG_DRIVER(dev->dev, "Requested pixel clock is %d Hz\n", rate);
+
+	if (ret < 0) {
+		DRM_ERROR("Cannot set desired pixel clock (%d Hz)\n",
+			  rate);
+		return -EINVAL;
+	}
+	clk_prepare_enable(priv->clk);
+	if (!__clk_is_enabled(priv->clk)) {
+		DRM_ERROR("PLL could not lock at desired frequency (%d Hz)\n",
+			  rate);
+		return -EINVAL;
+	}
+	return 0;
+}
+
 static void baikal_vdu_primary_plane_atomic_update(struct drm_plane *plane,
 					      struct drm_plane_state *old_state)
 {
@@ -71,21 +108,17 @@ static void baikal_vdu_primary_plane_atomic_update(struct drm_plane *plane,
 	struct drm_plane_state *state = plane->state;
 	struct drm_framebuffer *fb = state->fb;
 	struct arm_smccc_res res;
-	uint32_t cntl;
-	uint32_t addr;
-	uint32_t end;
+	u32 cntl, addr, end;
 	unsigned long flags;
 
 	if (!fb)
 		return;
 
-	addr = drm_fb_cma_get_gem_addr(fb, state, 0);
+	addr = baikal_vdu_fb_cma_get_gem_addr(fb, state, 0);
 	end = ((addr + fb->height * fb->pitches[0] - 1) & MRR_DEAR_MRR_MASK) | MRR_OUTSTND_RQ(4);
-	if (priv->panel)
-		addr |= 1;
 
 	spin_lock_irqsave(&priv->lock, flags);
-	arm_smccc_smc(BAIKAL_SMC_VDU_UPDATE, addr, end, 0, 0, 0, 0, 0, &res);
+	arm_smccc_smc(BAIKAL_SMC_VDU_UPDATE_HDMI, addr, end, 0, 0, 0, 0, 0, &res);
 	spin_unlock_irqrestore(&priv->lock, flags);
 
 	if (res.a0 == -EBUSY) {
@@ -104,7 +137,7 @@ static void baikal_vdu_primary_plane_atomic_update(struct drm_plane *plane,
 	 * the low bit, while DRM formats list channels from high bit
 	 * to low bit as you read left to right.
 	 */
-	switch (fb->format->format) {
+	switch (fb->pixel_format) {
 	case DRM_FORMAT_BGR888:
 		cntl |= CR1_BPP24 | CR1_FBP | CR1_BGR;
 		break;
@@ -135,7 +168,8 @@ static void baikal_vdu_primary_plane_atomic_update(struct drm_plane *plane,
 		break;
 	default:
 		WARN_ONCE(true, "Unknown FB format 0x%08x, set XRGB8888 instead\n",
-				fb->format->format);
+				fb->pixel_format);
+		fb->pixel_format = DRM_FORMAT_XRGB8888;
 		cntl |= CR1_BPP24;
 		break;
 	}
@@ -144,8 +178,8 @@ static void baikal_vdu_primary_plane_atomic_update(struct drm_plane *plane,
 }
 
 static const struct drm_plane_helper_funcs baikal_vdu_primary_plane_helper_funcs = {
+	.atomic_check = baikal_vdu_primary_plane_atomic_check,
 	.atomic_update = baikal_vdu_primary_plane_atomic_update,
-	.prepare_fb = drm_gem_fb_prepare_fb,
 };
 
 static const struct drm_plane_funcs baikal_vdu_primary_plane_funcs = {
@@ -179,11 +213,8 @@ int baikal_vdu_primary_plane_init(struct drm_device *drm)
 
 	ret = drm_universal_plane_init(drm, plane, 0,
 				       &baikal_vdu_primary_plane_funcs,
-				       formats,
-				       ARRAY_SIZE(formats),
-				       NULL,
-				       DRM_PLANE_TYPE_PRIMARY,
-				       NULL);
+				       formats, ARRAY_SIZE(formats),
+				       DRM_PLANE_TYPE_PRIMARY, NULL);
 	if (ret)
 		return ret;
 
@@ -191,3 +222,5 @@ int baikal_vdu_primary_plane_init(struct drm_device *drm)
 
 	return 0;
 }
+
+

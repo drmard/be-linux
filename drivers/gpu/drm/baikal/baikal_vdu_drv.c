@@ -1,9 +1,7 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019-2021 Baikal Electronics JSC
+ * Copyright (C) 2019-2020 Baikal Electronics JSC
  *
  * Author: Pavel Parkhomenko <Pavel.Parkhomenko@baikalelectronics.ru>
- * All bugs by Alexey Sheplyakov <asheplyakov@altlinux.org>
  *
  * This driver is based on ARM PL111 DRM driver
  *
@@ -13,6 +11,12 @@
  * Copyright (c) 2007 Dave Airlie <airlied@linux.ie>
  * Copyright (C) 2011 Texas Instruments
  * (C) COPYRIGHT 2012-2013 ARM Limited. All rights reserved.
+ *
+ * This program is free software and is provided to you under the terms of the
+ * GNU General Public License version 2 as published by the Free Software
+ * Foundation, and any use by you of this program is subject to the terms of
+ * such GNU licence.
+ *
  */
 
 #include <linux/arm-smccc.h>
@@ -22,97 +26,41 @@
 #include <linux/shmem_fs.h>
 #include <linux/dma-buf.h>
 #include <linux/module.h>
-#include <linux/of_graph.h>
-#include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
+#include <linux/fb.h>
 
+#include <drm/drmP.h>
 #include <drm/drm_atomic_helper.h>
-#include <drm/drm_bridge.h>
 #include <drm/drm_connector.h>
 #include <drm/drm_crtc_helper.h>
-#include <drm/drm_drv.h>
 #include <drm/drm_gem_cma_helper.h>
 #include <drm/drm_fb_cma_helper.h>
 #include <drm/drm_fb_helper.h>
-#include <drm/drm_gem_framebuffer_helper.h>
-#include <drm/drm_irq.h>
-#include <drm/drm_of.h>
-#include <drm/drm_probe_helper.h>
-#include <drm/drm_vblank.h>
 
 #include "baikal_vdu_drm.h"
 #include "baikal_vdu_regs.h"
 
 #define DRIVER_NAME                 "baikal-vdu"
 #define DRIVER_DESC                 "DRM module for Baikal VDU"
-#define DRIVER_DATE                 "20210129"
+#define DRIVER_DATE                 "20200131"
 
 #define BAIKAL_SMC_SCP_LOG_DISABLE  0x82000200
 
 int mode_fixup = 0;
 
+static void baikal_vdu_fb_output_poll_changed(struct drm_device *dev)
+{
+	struct baikal_vdu_private *priv = dev->dev_private;
+	drm_fbdev_cma_hotplug_event(priv->fbdev);
+}
+
 static struct drm_mode_config_funcs mode_config_funcs = {
-	.fb_create = drm_gem_fb_create,
+	.fb_create = drm_fb_cma_create,
+	.output_poll_changed = baikal_vdu_fb_output_poll_changed,
 	.atomic_check = drm_atomic_helper_check,
 	.atomic_commit = drm_atomic_helper_commit,
 };
-
-const struct drm_encoder_funcs baikal_vdu_encoder_funcs = {
-	.destroy = drm_encoder_cleanup,
-};
-
-/* Walks the OF graph to find the endpoint node and then asks DRM
- * to look up the panel or the bridge connected to the node found
- */
-int baikal_vdu_find_panel_or_bridge(struct device *dev,
-		struct drm_panel **panel, struct drm_bridge **bridge)
-{
-	struct device_node *endpoint = NULL;
-	struct device_node *remote;
-	struct device_node *old_remote = NULL;
-	struct device_node *np = dev->of_node;
-	struct drm_device *drm = dev_get_drvdata(dev);
-	struct baikal_vdu_private *priv = drm->dev_private;
-	int ep_count = 0;
-
-	for_each_endpoint_of_node(np, endpoint) {
-
-		remote = of_graph_get_remote_port_parent(endpoint);
-		if (old_remote && remote != old_remote) {
-			dev_err(dev, "all endpoints must be connected to the same panel or bridge %d\n", ep_count);
-			of_node_put(endpoint);
-			return -EINVAL;
-		}
-
-		/* don't proceed if we have an endpoint but no panel node
-		 * or bridge node tied to it */
-		if (!remote) {
-			dev_err(dev, "no valid remote node connected to the endpoint@%d\n", ep_count);
-			of_node_put(endpoint);
-			return -EINVAL;
-		}
-
-		ep_count++;
-		of_node_put(remote);
-		old_remote = remote;
-	}
-
-	if (!ep_count) {
-		dev_err(dev, "no endpoints found connected either to panel or bridge\n");
-		return -EINVAL;
-	}
-
-	if (!of_device_is_available(remote)) {
-		dev_err(dev, "not available for remote node\n");
-		return -EINVAL;
-	}
-
-	priv->ep_count = ep_count;
-
-	return drm_of_find_panel_or_bridge(np, 0, 0, panel, bridge);
-
-}
 
 static int baikal_vdu_remove_efifb(struct drm_device *dev)
 {
@@ -139,7 +87,6 @@ static int vdu_modeset_init(struct drm_device *dev)
 {
 	struct drm_mode_config *mode_config;
 	struct baikal_vdu_private *priv = dev->dev_private;
-	struct drm_encoder *encoder;
 	struct arm_smccc_res res;
 	int ret = 0;
 
@@ -150,9 +97,9 @@ static int vdu_modeset_init(struct drm_device *dev)
 	mode_config = &dev->mode_config;
 	mode_config->funcs = &mode_config_funcs;
 	mode_config->min_width = 1;
-	mode_config->max_width = 4095;
+	mode_config->max_width = 4096;
 	mode_config->min_height = 1;
-	mode_config->max_height = 4095;
+	mode_config->max_height = 4096;
 
 	ret = baikal_vdu_primary_plane_init(dev);
 	if (ret != 0) {
@@ -166,33 +113,36 @@ static int vdu_modeset_init(struct drm_device *dev)
 		goto out_config;
 	}
 
-	ret = baikal_vdu_find_panel_or_bridge(dev->dev, &priv->panel, &priv->bridge);
+	ret = get_panel_or_bridge(dev->dev, &priv->connector.panel, &priv->bridge);
 	if (ret == -EPROBE_DEFER) {
 		dev_info(dev->dev, "Bridge probe deferred\n");
 		goto out_config;
 	}
 
+	ret = baikal_vdu_encoder_init(dev);
+	if (ret) {
+		dev_err(dev->dev, "Failed to create DRM encoder\n");
+		goto out_config;
+	}
+
 	if (priv->bridge) {
-		encoder = &priv->encoder;
-		ret = drm_encoder_init(dev, encoder, &baikal_vdu_encoder_funcs,
-				       DRM_MODE_ENCODER_NONE, NULL);
-		if (ret) {
-			dev_err(dev->dev, "Failed to create DRM encoder\n");
-			goto out_config;
-		}
-		encoder->crtc = &priv->crtc;
-		encoder->possible_crtcs = BIT(drm_crtc_index(encoder->crtc));
-		priv->bridge->encoder = encoder;
-		encoder->bridge = priv->bridge;
-		ret = drm_bridge_attach(encoder, priv->bridge, NULL);
+		priv->bridge->encoder = &priv->encoder;
+		priv->encoder.bridge = priv->bridge;
+		ret = drm_bridge_attach(priv->encoder.dev, priv->bridge);
 		if (ret) {
 			dev_err(dev->dev, "Failed to attach DRM bridge %d\n", ret);
 			goto out_config;
 		}
-	} else if (priv->panel) {
-		ret = baikal_vdu_lvds_connector_create(dev);
+	} else if (priv->connector.panel) {
+		ret = baikal_vdu_connector_create(dev);
 		if (ret) {
 			dev_err(dev->dev, "Failed to create DRM connector\n");
+			goto out_config;
+		}
+		ret = drm_mode_connector_attach_encoder(&priv->connector.connector,
+						&priv->encoder);
+		if (ret != 0) {
+			dev_err(dev->dev, "Failed to attach encoder\n");
 			goto out_config;
 		}
 	} else
@@ -226,13 +176,12 @@ static int vdu_modeset_init(struct drm_device *dev)
 
 	drm_mode_config_reset(dev);
 
+	priv->fbdev = drm_fbdev_cma_init(dev, 32,
+			dev->mode_config.num_crtc,
+			dev->mode_config.num_connector);
+
 	drm_kms_helper_poll_init(dev);
 
-	ret = drm_dev_register(dev, 0);
-	if (ret)
-		goto out_clk;
-
-	drm_fbdev_generic_setup(dev, 32);
 	goto finish;
 
 out_clk:
@@ -253,9 +202,17 @@ static const struct file_operations drm_fops = {
 	.read = drm_read,
 };
 
+static void vdu_lastclose(struct drm_device *dev)
+{
+	struct baikal_vdu_private *priv = dev->dev_private;
+
+	drm_fbdev_cma_restore_mode(priv->fbdev);
+}
+
 static struct drm_driver vdu_drm_driver = {
-	.driver_features = DRIVER_GEM |	DRIVER_MODESET | DRIVER_ATOMIC,
-	.lastclose = drm_fb_helper_lastclose,
+	.driver_features = DRIVER_HAVE_IRQ | DRIVER_GEM |
+			DRIVER_MODESET | DRIVER_PRIME | DRIVER_ATOMIC,
+	.lastclose = vdu_lastclose,
 	.irq_handler = baikal_vdu_irq,
 	.ioctls = NULL,
 	.fops = &drm_fops,
@@ -265,11 +222,16 @@ static struct drm_driver vdu_drm_driver = {
 	.major = 1,
 	.minor = 0,
 	.patchlevel = 0,
-	.dumb_create = drm_gem_cma_dumb_create,
+	.dumb_create = baikal_vdu_dumb_create,
 	.dumb_destroy = drm_gem_dumb_destroy,
-	.dumb_map_offset = drm_gem_dumb_map_offset,
-	.gem_free_object_unlocked = drm_gem_cma_free_object,
+	.dumb_map_offset = drm_gem_cma_dumb_map_offset,
+	.gem_free_object = drm_gem_cma_free_object,
 	.gem_vm_ops = &drm_gem_cma_vm_ops,
+
+	.enable_vblank = baikal_vdu_enable_vblank,
+	.disable_vblank = baikal_vdu_disable_vblank,
+
+	.get_vblank_counter = drm_vblank_no_hw_counter,
 
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
@@ -297,7 +259,6 @@ static int baikal_vdu_drm_probe(struct platform_device *pdev)
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
-	priv->fb_end = 0;
 
 	drm = drm_dev_alloc(&vdu_drm_driver, dev);
 	if (IS_ERR(drm))
@@ -333,54 +294,53 @@ static int baikal_vdu_drm_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	if (pdev->dev.of_node && of_property_read_bool(pdev->dev.of_node, "lvds-out"))
-		priv->type = VDU_TYPE_LVDS;
-	else
-		priv->type = VDU_TYPE_HDMI;
-
 	ret = vdu_modeset_init(drm);
 	if (ret != 0) {
 		dev_err(dev, "Failed to init modeset\n");
 		goto dev_unref;
 	}
 
+	ret = drm_dev_register(drm, 0);
+	if (ret < 0)
+		goto dev_unref;
+
 	return 0;
 
 dev_unref:
-	writel(0, priv->regs + IMR);
-	writel(0x3ffff, priv->regs + ISR);
 	drm_irq_uninstall(drm);
 	drm->dev_private = NULL;
-	drm_dev_put(drm);
+	drm_dev_unref(drm);
 	return ret;
 }
 
 static int baikal_vdu_drm_remove(struct platform_device *pdev)
 {
 	struct drm_device *drm = platform_get_drvdata(pdev);
+	struct baikal_vdu_private *priv = drm->dev_private;
 
 	drm_dev_unregister(drm);
+	if (priv->fbdev)
+		drm_fbdev_cma_fini(priv->fbdev);
 	drm_mode_config_cleanup(drm);
 	drm_irq_uninstall(drm);
 	drm->dev_private = NULL;
-	drm_dev_put(drm);
+	drm_dev_unref(drm);
 
 	return 0;
 }
 
 static const struct of_device_id baikal_vdu_of_match[] = {
-	{ .compatible = "baikal,vdu" },
-	{ },
+    { .compatible = "baikal,vdu" },
+    { },
 };
-MODULE_DEVICE_TABLE(of, baikal_vdu_of_match);
 
 static struct platform_driver baikal_vdu_platform_driver = {
-	.probe  = baikal_vdu_drm_probe,
-	.remove = baikal_vdu_drm_remove,
-	.driver = {
-		.name   = DRIVER_NAME,
-		.of_match_table = baikal_vdu_of_match,
-	},
+    .probe  = baikal_vdu_drm_probe,
+    .remove = baikal_vdu_drm_remove,
+    .driver = {
+        .name   = DRIVER_NAME,
+        .of_match_table = baikal_vdu_of_match,
+    },
 };
 
 module_param(mode_fixup, int, 0644);
@@ -391,4 +351,3 @@ MODULE_AUTHOR("Pavel Parkhomenko <Pavel.Parkhomenko@baikalelectronics.ru>");
 MODULE_DESCRIPTION("Baikal Electronics BE-M1000 Video Display Unit (VDU) DRM Driver");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:" DRIVER_NAME);
-MODULE_SOFTDEP("pre: baikal_hdmi");

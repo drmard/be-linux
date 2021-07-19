@@ -1,9 +1,23 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /* hfcsusb.c
  * mISDN driver for Colognechip HFC-S USB chip
  *
  * Copyright 2001 by Peter Sprenger (sprenger@moving-bytes.de)
  * Copyright 2008 by Martin Bachem (info@bachem-it.com)
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *
  *
  * module params
  *   debug=<n>, default=0, with n=0xHHHHGGGG
@@ -248,10 +262,8 @@ hfcsusb_ph_info(struct hfcsusb *hw)
 	struct dchannel *dch = &hw->dch;
 	int i;
 
-	phi = kzalloc(struct_size(phi, bch, dch->dev.nrbchan), GFP_ATOMIC);
-	if (!phi)
-		return;
-
+	phi = kzalloc(sizeof(struct ph_info) +
+		      dch->dev.nrbchan * sizeof(struct ph_info_ch), GFP_ATOMIC);
 	phi->dch.ch.protocol = hw->protocol;
 	phi->dch.ch.Flags = dch->Flags;
 	phi->dch.state = dch->state;
@@ -807,7 +819,6 @@ hfcsusb_rx_frame(struct usb_fifo *fifo, __u8 *data, unsigned int len,
 	int		fifon = fifo->fifonum;
 	int		i;
 	int		hdlc = 0;
-	unsigned long	flags;
 
 	if (debug & DBG_HFC_CALL_TRACE)
 		printk(KERN_DEBUG "%s: %s: fifo(%i) len(%i) "
@@ -824,7 +835,7 @@ hfcsusb_rx_frame(struct usb_fifo *fifo, __u8 *data, unsigned int len,
 		return;
 	}
 
-	spin_lock_irqsave(&hw->lock, flags);
+	spin_lock(&hw->lock);
 	if (fifo->dch) {
 		rx_skb = fifo->dch->rx_skb;
 		maxlen = fifo->dch->maxlen;
@@ -833,7 +844,7 @@ hfcsusb_rx_frame(struct usb_fifo *fifo, __u8 *data, unsigned int len,
 	if (fifo->bch) {
 		if (test_bit(FLG_RX_OFF, &fifo->bch->Flags)) {
 			fifo->bch->dropcnt += len;
-			spin_unlock_irqrestore(&hw->lock, flags);
+			spin_unlock(&hw->lock);
 			return;
 		}
 		maxlen = bchannel_get_rxbuf(fifo->bch, len);
@@ -843,7 +854,7 @@ hfcsusb_rx_frame(struct usb_fifo *fifo, __u8 *data, unsigned int len,
 				skb_trim(rx_skb, 0);
 			pr_warning("%s.B%d: No bufferspace for %d bytes\n",
 				   hw->name, fifo->bch->nr, len);
-			spin_unlock_irqrestore(&hw->lock, flags);
+			spin_unlock(&hw->lock);
 			return;
 		}
 		maxlen = fifo->bch->maxlen;
@@ -867,7 +878,7 @@ hfcsusb_rx_frame(struct usb_fifo *fifo, __u8 *data, unsigned int len,
 			} else {
 				printk(KERN_DEBUG "%s: %s: No mem for rx_skb\n",
 				       hw->name, __func__);
-				spin_unlock_irqrestore(&hw->lock, flags);
+				spin_unlock(&hw->lock);
 				return;
 			}
 		}
@@ -877,12 +888,12 @@ hfcsusb_rx_frame(struct usb_fifo *fifo, __u8 *data, unsigned int len,
 			       "for fifo(%d) HFCUSB_D_RX\n",
 			       hw->name, __func__, fifon);
 			skb_trim(rx_skb, 0);
-			spin_unlock_irqrestore(&hw->lock, flags);
+			spin_unlock(&hw->lock);
 			return;
 		}
 	}
 
-	skb_put_data(rx_skb, data, len);
+	memcpy(skb_put(rx_skb, len), data, len);
 
 	if (hdlc) {
 		/* we have a complete hdlc packet */
@@ -931,7 +942,7 @@ hfcsusb_rx_frame(struct usb_fifo *fifo, __u8 *data, unsigned int len,
 		/* deliver transparent data to layer2 */
 		recv_Bchannel(fifo->bch, MISDN_ID_ANY, false);
 	}
-	spin_unlock_irqrestore(&hw->lock, flags);
+	spin_unlock(&hw->lock);
 }
 
 static void
@@ -968,19 +979,18 @@ rx_iso_complete(struct urb *urb)
 	__u8 *buf;
 	static __u8 eof[8];
 	__u8 s0_state;
-	unsigned long flags;
 
 	fifon = fifo->fifonum;
 	status = urb->status;
 
-	spin_lock_irqsave(&hw->lock, flags);
+	spin_lock(&hw->lock);
 	if (fifo->stop_gracefull) {
 		fifo->stop_gracefull = 0;
 		fifo->active = 0;
-		spin_unlock_irqrestore(&hw->lock, flags);
+		spin_unlock(&hw->lock);
 		return;
 	}
-	spin_unlock_irqrestore(&hw->lock, flags);
+	spin_unlock(&hw->lock);
 
 	/*
 	 * ISO transfer only partially completed,
@@ -1086,16 +1096,15 @@ rx_int_complete(struct urb *urb)
 	struct usb_fifo *fifo = (struct usb_fifo *) urb->context;
 	struct hfcsusb *hw = fifo->hw;
 	static __u8 eof[8];
-	unsigned long flags;
 
-	spin_lock_irqsave(&hw->lock, flags);
+	spin_lock(&hw->lock);
 	if (fifo->stop_gracefull) {
 		fifo->stop_gracefull = 0;
 		fifo->active = 0;
-		spin_unlock_irqrestore(&hw->lock, flags);
+		spin_unlock(&hw->lock);
 		return;
 	}
-	spin_unlock_irqrestore(&hw->lock, flags);
+	spin_unlock(&hw->lock);
 
 	fifon = fifo->fifonum;
 	if ((!fifo->active) || (urb->status)) {
@@ -1163,13 +1172,12 @@ tx_iso_complete(struct urb *urb)
 	int *tx_idx;
 	int frame_complete, fifon, status, fillempty = 0;
 	__u8 threshbit, *p;
-	unsigned long flags;
 
-	spin_lock_irqsave(&hw->lock, flags);
+	spin_lock(&hw->lock);
 	if (fifo->stop_gracefull) {
 		fifo->stop_gracefull = 0;
 		fifo->active = 0;
-		spin_unlock_irqrestore(&hw->lock, flags);
+		spin_unlock(&hw->lock);
 		return;
 	}
 
@@ -1187,7 +1195,7 @@ tx_iso_complete(struct urb *urb)
 	} else {
 		printk(KERN_DEBUG "%s: %s: neither BCH nor DCH\n",
 		       hw->name, __func__);
-		spin_unlock_irqrestore(&hw->lock, flags);
+		spin_unlock(&hw->lock);
 		return;
 	}
 
@@ -1367,7 +1375,7 @@ tx_iso_complete(struct urb *urb)
 			       hw->name, __func__,
 			       symbolic(urb_errlist, status), status, fifon);
 	}
-	spin_unlock_irqrestore(&hw->lock, flags);
+	spin_unlock(&hw->lock);
 }
 
 /*

@@ -204,11 +204,11 @@ static int assign_irqs(struct platform_device *pdev)
 		}
 
 #ifdef CONFIG_OF
-		if (!strncmp(irq_res->name, "job", 4)) {
+		if (!strncmp(irq_res->name, "JOB", 4)) {
 			irqtag = JOB_IRQ_TAG;
-		} else if (!strncmp(irq_res->name, "mmu", 4)) {
+		} else if (!strncmp(irq_res->name, "MMU", 4)) {
 			irqtag = MMU_IRQ_TAG;
-		} else if (!strncmp(irq_res->name, "gpu", 4)) {
+		} else if (!strncmp(irq_res->name, "GPU", 4)) {
 			irqtag = GPU_IRQ_TAG;
 		} else {
 			dev_err(&pdev->dev, "Invalid irq res name: '%s'\n",
@@ -406,7 +406,6 @@ static int kbase_open(struct inode *inode, struct file *filp)
 
 	init_waitqueue_head(&kctx->event_queue);
 	filp->private_data = kctx;
-	filp->f_mode |= FMODE_UNSIGNED_OFFSET;
 	kctx->filp = filp;
 
 	if (kbdev->infinite_cache_active_default)
@@ -3040,7 +3039,7 @@ static int kbasep_protected_mode_init(struct kbase_device *kbdev)
 		mutex_unlock(&kbdev->pm.lock);
 
 		/* protected_mode_disable() returns -EINVAL if not supported */
-		kbdev->protected_mode_support = 0; //mnk
+		kbdev->protected_mode_support = (err != -EINVAL);
 	}
 #endif
 	return 0;
@@ -3919,7 +3918,7 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		kbase_platform_device_remove(pdev);
 		return err;
 	}
-  dev_info(kbdev->dev, "GPU freq is %lu \n", clk_get_rate(kbdev->clock) );
+
 	dev_info(kbdev->dev,
 			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
 

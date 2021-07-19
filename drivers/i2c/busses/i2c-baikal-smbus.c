@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
- * SMBus adapter driver for Baikal SoC
+ * SMBus adapter driver for Baikal-M
  *
- * Copyright (C) 2019-2021 Baikal Electronics, JSC
- * Authors: Georgy Vlasov <georgy.vlasov@baikalelectronics.ru>
- *	    Mikhail Ivanov <michail.ivanov@baikalelectronics.ru>
+ * Author: Georgy Vlasov <georgy.vlasov@baikalelectronics.ru>
+ *
+ * Copyright (C) 2019-2020 Baikal Electronics
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/clk.h>
@@ -14,34 +17,58 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 
-/* Register definitions */
-#define BE_SMBUS_CR1		0x00
-#define BE_CR1_IRT		BIT(0)
-#define BE_CR1_TRS		BIT(1)
-#define BE_CR1_IEB		BIT(3)
+/* Register definition */
+#define BE_SMBUS_CR1		0x00	/* Control register 1					*/
+#define BE_SMBUS_CR2		0x04	/* Control register 2					*/
+#define BE_SMBUS_FBCR1		0x08	/* FIFO Byte count register 1				*/
+#define BE_SMBUS_FIFO		0x0C	/* FIFO Memory						*/
+#define BE_SMBUS_SCD1		0x10	/* SCL Clock divider register 1				*/
+#define BE_SMBUS_SCD2		0x14	/* SCL Clock divider register 2				*/
+#define BE_SMBUS_ADR1		0x18	/* Address register					*/
+#define BE_SMBUS_ADR2		0x1C	/* Address register	 				*/
+#define BE_SMBUS_ISR1		0x20	/* Interrupt status register 1				*/
+#define BE_SMBUS_IMR1		0x24	/* Interrupt mask register 1				*/
+#define BE_SMBUS_IVR1		0x28	/* Interrupt vector register 1				*/
+#define BE_SMBUS_FBCR2		0x2C	/* FIFO Byte count register 2				*/
+#define BE_SMBUS_RSBCR1		0x30	/* Repeated start byte count register 1 (master)	*/
+#define BE_SMBUS_RSBCR2		0x34	/* Repeated start byte count register 2 (master)	*/
+#define BE_SMBUS_SRSBCR1	0x38	/* Repeated start byte count register 1 (slave)		*/
+#define BE_SMBUS_SRSBCR2	0x3C	/* Repeated start byte count register 2 (slave)		*/
+#define BE_SMBUS_RSSFIFO	0x40	/* Repeated start slave FIFO Memory (slave)		*/
+#define BE_SMBUS_ISR2		0x44	/* Interrupt status register 2				*/
+#define BE_SMBUS_IMR2		0x48	/* Interrupt mask register 2				*/
+#define BE_SMBUS_IVR2		0x4C	/* Interrupt vector register 2				*/
+#define BE_SMBUS_SFR		0x64	/* Programmable SDA/SCL spike filter width		*/
+#define BE_SMBUS_TOCR		0x70	/* SCL low timeout register				*/
 
-#define BE_SMBUS_CR2		0x04
-#define BE_CR2_FTE		BIT(1)
+/* BE SMBus CR1 bits */
+#define BE_CR1_GCA		BIT(5)	/* Generall Call Address Enable				*/
+#define BE_CR1_SAS		BIT(4)	/* Slave Address Size					*/
+#define BE_CR1_IEB		BIT(3)	/* SMBus Controller Enable				*/
+#define BE_CR1_MSS		BIT(2)	/* Master / Slave Select				*/
+#define BE_CR1_TRS		BIT(1)	/* Transmitter / Receiver Select			*/
+#define BE_CR1_IRT		BIT(0)	/* SMBus Reset						*/
 
-#define BE_SMBUS_FBCR1		0x08
-#define BE_SMBUS_FIFO		0x0c
-#define BE_SMBUS_SCD1		0x10
+/* BE SMBus CR2 bits */
+#define BE_CR2_RSF		BIT(4)	/* Repeater Start Slave (RSS) FIFO			*/
+#define BE_CR2_RSE		BIT(3)	/* Repeated Start Enable				*/
+#define BE_CR2_HBD		BIT(2)	/* Hold SMBus for more FIFO Data			*/
+#define BE_CR2_FTE		BIT(1)	/* FIFO Mode - Transfer Enable (Master)			*/
+#define BE_CR2_FRT		BIT(0)	/* FIFO Reset						*/
 
-#define BE_SMBUS_SCD2		0x14
-#define BE_SCD2_MASK		0x03
-#define BE_SCD2_SHT		BIT(7)
-
-#define BE_SMBUS_ADR1		0x18
-
-#define BE_SMBUS_ISR1		0x20
+/* BE SMBus ISR1 bits */
 #define BE_ISR1_MASK		0x7f
-#define BE_ISR1_FER		BIT(2)
-#define BE_ISR1_RNK		BIT(3)
-#define BE_ISR1_TCS		BIT(6)
+#define BE_ISR1_TCS		BIT(6)	/* Transfer Completed - SMBus Stop Asserted		*/
+#define BE_ISR1_FFE		BIT(5)	/* FIFO Almost Full (Rx mode) of Empty (Tx mode)	*/
+#define BE_ISR1_ALD		BIT(4)	/* Arbitration Loss Detected				*/
+#define BE_ISR1_RNK		BIT(3)	/* Receive NACK						*/
+#define BE_ISR1_FER		BIT(2)	/* FIFO Error - Underrun or Overrun			*/
+#define BE_ISR1_FOR		BIT(1)	/* FIFO - Overrun					*/
+#define BE_ISR1_FUR		BIT(0)	/* FIFO - Underrun					*/
 
-#define BE_SMBUS_IMR1		0x24
-#define BE_SMBUS_FBCR2		0x2c
-#define BE_SMBUS_IMR2		0x48
+/* BE SMBus SCD register bits and masks */
+#define BE_SCD2_MASK		0x03
+#define BE_SCD2_SHT		BIT(7)	/* Fast/Standard Start/Stop Setup/Hold Time		*/
 
 #define BE_SMBUS_FIFO_SIZE	16
 
@@ -64,8 +91,7 @@ static int be_smbus_init(struct be_smbus_dev *besmb)
 	writel(0, besmb->base + BE_SMBUS_IMR1);
 	writel(0, besmb->base + BE_SMBUS_IMR2);
 	writel(divider & 0xff, besmb->base + BE_SMBUS_SCD1);
-	writel(BE_SCD2_SHT | ((divider >> 8) & BE_SCD2_MASK),
-		besmb->base + BE_SMBUS_SCD2);
+	writel(BE_SCD2_SHT | ((divider >> 8) & BE_SCD2_MASK), besmb->base + BE_SMBUS_SCD2);
 
 	return 0;
 }
@@ -80,13 +106,12 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 	switch (size) {
 	case I2C_SMBUS_BYTE:
 		writel(BE_CR1_IRT, besmb->base + BE_SMBUS_CR1);
-		writel(0, besmb->base + BE_SMBUS_CR1);
+		writel(0x0, besmb->base + BE_SMBUS_CR1);
 		writel(addr, besmb->base + BE_SMBUS_ADR1);
 		writel(1, besmb->base + BE_SMBUS_FBCR1);
 
 		if (read_write == I2C_SMBUS_WRITE) {
-			writel(BE_CR1_TRS | BE_CR1_IEB,
-				besmb->base + BE_SMBUS_CR1);
+			writel(BE_CR1_TRS | BE_CR1_IEB, besmb->base + BE_SMBUS_CR1);
 			writel(command, besmb->base + BE_SMBUS_FIFO);
 		} else {
 			writel(BE_CR1_IEB, besmb->base + BE_SMBUS_CR1);
@@ -95,8 +120,7 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 		writel(BE_ISR1_MASK, besmb->base + BE_SMBUS_ISR1);
 		writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
-		while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-			!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+		while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) && !(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
 
 		if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
 			ret = -ENXIO;
@@ -116,7 +140,7 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 		break;
 	case I2C_SMBUS_BYTE_DATA:
 		writel(BE_CR1_IRT, besmb->base + BE_SMBUS_CR1);
-		writel(0, besmb->base + BE_SMBUS_CR1);
+		writel(0x0, besmb->base + BE_SMBUS_CR1);
 		writel(addr, besmb->base + BE_SMBUS_ADR1);
 		writel(BE_CR1_TRS | BE_CR1_IEB, besmb->base + BE_SMBUS_CR1);
 
@@ -132,8 +156,7 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 		writel(BE_ISR1_MASK, besmb->base + BE_SMBUS_ISR1);
 		writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
-		while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-			!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+		while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) && !(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
 
 		if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
 			ret = -ENXIO;
@@ -146,8 +169,7 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 			writel(BE_ISR1_MASK, besmb->base + BE_SMBUS_ISR1);
 			writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
-			while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-				!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+			while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) && !(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
 
 			if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
 				ret = -ENXIO;
@@ -165,17 +187,15 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 		break;
 	case I2C_SMBUS_WORD_DATA:
 		writel(BE_CR1_IRT, besmb->base + BE_SMBUS_CR1);
-		writel(0, besmb->base + BE_SMBUS_CR1);
+		writel(0x0, besmb->base + BE_SMBUS_CR1);
 		writel(addr, besmb->base + BE_SMBUS_ADR1);
 		writel(BE_CR1_TRS | BE_CR1_IEB, besmb->base + BE_SMBUS_CR1);
 
 		if (read_write == I2C_SMBUS_WRITE) {
 			writel(3, besmb->base + BE_SMBUS_FBCR1);
 			writel(command, besmb->base + BE_SMBUS_FIFO);
-			writel((data->word >> 0) & 0xff,
-				besmb->base + BE_SMBUS_FIFO);
-			writel((data->word >> 8) & 0xff,
-				besmb->base + BE_SMBUS_FIFO);
+			writel((data->word >> 0) & 0xff, besmb->base + BE_SMBUS_FIFO);
+			writel((data->word >> 8) & 0xff, besmb->base + BE_SMBUS_FIFO);
 		} else {
 			writel(1, besmb->base + BE_SMBUS_FBCR1);
 			writel(command, besmb->base + BE_SMBUS_FIFO);
@@ -184,8 +204,7 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 		writel(BE_ISR1_MASK, besmb->base + BE_SMBUS_ISR1);
 		writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
-		while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-			!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+		while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) && !(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
 
 		if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
 			ret = -ENXIO;
@@ -198,15 +217,14 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 			writel(BE_ISR1_MASK, besmb->base + BE_SMBUS_ISR1);
 			writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
-			while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-				!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+			while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) && !(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
 
 			if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
 				ret = -ENXIO;
 				goto exit;
 			}
 
-			data->word  = readl(besmb->base + BE_SMBUS_FIFO);
+			data->word  = readl(besmb->base + BE_SMBUS_FIFO) << 0;
 			data->word |= readl(besmb->base + BE_SMBUS_FIFO) << 8;
 			if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_FER) {
 				ret = -EMSGSIZE;
@@ -218,14 +236,14 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 		break;
 	case I2C_SMBUS_BLOCK_DATA:
 		writel(BE_CR1_IRT, besmb->base + BE_SMBUS_CR1);
-		writel(0, besmb->base + BE_SMBUS_CR1);
+		writel(0x0, besmb->base + BE_SMBUS_CR1);
 		writel(addr, besmb->base + BE_SMBUS_ADR1);
 		writel(BE_CR1_TRS | BE_CR1_IEB, besmb->base + BE_SMBUS_CR1);
 
 		if (read_write == I2C_SMBUS_WRITE) {
-			unsigned txedsize = 0;
+			unsigned txedsize;
 
-			while (txedsize < data->block[0] + 1) {
+			for (txedsize = 0; txedsize < data->block[0] + 1;) {
 				unsigned xblocknum;
 				unsigned xfersize;
 
@@ -235,30 +253,22 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 				}
 
 				writel(xfersize, besmb->base + BE_SMBUS_FBCR1);
-				if (!txedsize) {
-					/*
-					 * The first xfer should start with
-					 * command byte
-					 */
-					writel(command,
-						besmb->base + BE_SMBUS_FIFO);
+				if (txedsize == 0) { /* The first xfer should start with command byte */
+					writel(command, besmb->base + BE_SMBUS_FIFO);
 					xblocknum = 1;
 					++txedsize;
 				} else {
 					xblocknum = 0;
 				}
 
-				while (xblocknum < xfersize) {
-					writel(data->block[txedsize++],
-						besmb->base + BE_SMBUS_FIFO);
-					++xblocknum;
+				for (; xblocknum < xfersize; ++xblocknum) {
+					writel(data->block[txedsize++], besmb->base + BE_SMBUS_FIFO);
 				}
 
 				writel(BE_ISR1_MASK, besmb->base + BE_SMBUS_ISR1);
 				writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
-				while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-					!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+				while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) && !(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
 
 				if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
 					ret = -ENXIO;
@@ -266,15 +276,13 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 				}
 			}
 		} else {
-			unsigned rxedsize = 0;
-
+			unsigned rxedsize;
 			writel(1, besmb->base + BE_SMBUS_FBCR1);
 			writel(command, besmb->base + BE_SMBUS_FIFO);
 			writel(BE_ISR1_MASK, besmb->base + BE_SMBUS_ISR1);
 			writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
-			while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-				!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+			while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) && !(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
 
 			if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
 				ret = -ENXIO;
@@ -283,15 +291,13 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 
 			writel(BE_CR1_IEB, besmb->base + BE_SMBUS_CR1);
 
-			while (rxedsize < I2C_SMBUS_BLOCK_MAX) {
+			for (rxedsize = 0; rxedsize < I2C_SMBUS_BLOCK_MAX;) {
 				unsigned i;
-
 				writel(BE_SMBUS_FIFO_SIZE, besmb->base + BE_SMBUS_FBCR1);
 				writel(BE_ISR1_MASK, besmb->base + BE_SMBUS_ISR1);
 				writel(BE_CR2_FTE, besmb->base + BE_SMBUS_CR2);
 
-				while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) &&
-					!(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
+				while ((readl(besmb->base + BE_SMBUS_CR2) & BE_CR2_FTE) && !(readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_TCS));
 
 				if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_RNK) {
 					ret = -ENXIO;
@@ -299,9 +305,7 @@ static int be_smbus_xfer(struct i2c_adapter *adap, u16 addr,
 				}
 
 				for (i = 0; i < BE_SMBUS_FIFO_SIZE; ++i) {
-					data->block[1 + rxedsize++] =
-						readl(besmb->base + BE_SMBUS_FIFO);
-
+					data->block[1 + rxedsize++] = readl(besmb->base + BE_SMBUS_FIFO);
 					if (readl(besmb->base + BE_SMBUS_ISR1) & BE_ISR1_FER) {
 						ret = -EMSGSIZE;
 						goto exit;
@@ -350,15 +354,13 @@ static int be_smbus_probe(struct platform_device *pdev)
 	int ret;
 
 	besmb = devm_kzalloc(&pdev->dev, sizeof(*besmb), GFP_KERNEL);
-	if (besmb == NULL) {
+	if (!besmb)
 		return -ENOMEM;
-	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(base)) {
+	if (IS_ERR(base))
 		return PTR_ERR(base);
-	}
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0) {
@@ -376,9 +378,8 @@ static int be_smbus_probe(struct platform_device *pdev)
 	besmb->dev = &pdev->dev;
 
 	of_property_read_u32(np, "clock-frequency", &besmb->bus_clk_rate);
-	if (!besmb->bus_clk_rate) {
-		besmb->bus_clk_rate = 100000; /* default clock rate */
-	}
+	if (besmb->bus_clk_rate == 0)
+		besmb->bus_clk_rate = 100000;	/* default clock rate */
 
 	ret = devm_request_irq(&pdev->dev, irq, be_smbus_isr, 0, pdev->name, besmb);
 	if (ret) {
@@ -428,21 +429,21 @@ static int be_smbus_remove(struct platform_device *pdev)
 
 static const struct of_device_id be_smbus_match[] = {
 	{ .compatible = "be,smbus" },
-	{}
+	{},
 };
 MODULE_DEVICE_TABLE(of, be_smbus_match);
 
 static struct platform_driver be_smbus_driver = {
 	.driver = {
-		.name = "baikal-smbus",
-		.of_match_table = be_smbus_match
+		.name  = "baikal-smbus",
+		.of_match_table = be_smbus_match,
 	},
 	.probe  = be_smbus_probe,
-	.remove = be_smbus_remove
+	.remove = be_smbus_remove,
 };
 
 module_platform_driver(be_smbus_driver);
 
 MODULE_AUTHOR("Georgy Vlasov <georgy.vlasov@baikalelectronics.ru>");
 MODULE_DESCRIPTION("Baikal-M SMBus adapter driver");
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("GPL");

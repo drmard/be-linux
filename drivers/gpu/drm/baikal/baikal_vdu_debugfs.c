@@ -1,19 +1,19 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019-2021 Baikal Electronics JSC
+ * Copyright (C) 2019-2020 Baikal Electronics JSC
  *
  * Author: Pavel Parkhomenko <Pavel.Parkhomenko@baikalelectronics.ru>
  *
  * Parts of this file were based on sources as follows:
  *
  *  Copyright © 2017 Broadcom
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/seq_file.h>
-#include <linux/device.h>
-#include <drm/drm_debugfs.h>
-#include <drm/drm_device.h>
-#include <drm/drm_file.h>
+#include <drm/drmP.h>
 
 #include "baikal_vdu_drm.h"
 #include "baikal_vdu_regs.h"
@@ -72,58 +72,12 @@ int baikal_vdu_debugfs_regs(struct seq_file *m, void *unused)
 	return 0;
 }
 
-static ssize_t baikal_vdu_rg_read(struct file *file,
-		char __user *user_buf, size_t count, loff_t *ppos)
-{
-	char *filename = file->f_path.dentry->d_iname;
-	struct baikal_vdu_private *priv = file->f_inode->i_private;
-	char buf[16];
-	int len = 0;
-
-	if (!strcmp("htr", filename))
-		len = snprintf(buf, sizeof(buf), "%x\n", readl(priv->regs + HTR));
-	else if (!strcmp("vtr", filename))
-		len = snprintf(buf, sizeof(buf), "%x\n", readl(priv->regs + VTR1));
-	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
-}
-
-static ssize_t baikal_vdu_rg_write(struct file *file,
-		const char __user *buf, size_t count, loff_t *ppos)
-{
-	struct baikal_vdu_private *priv = file->f_inode->i_private;
-	char *filename = file->f_path.dentry->d_iname;
-	u32 val;
-	int ret;
-
-	ret = kstrtouint_from_user(buf, count, 16, &val);
-	if (ret)
-		return ret;
-
-	if (!strcmp("htr", filename))
-		writel(val, priv->regs + HTR);
-	else if (!strcmp("vtr", filename))
-		writel(val, priv->regs + VTR1);
-
-	return count;
-}
-
-static const struct file_operations baikal_vdu_rg_fops = {
-	.owner = THIS_MODULE,
-	.open = simple_open,
-	.write = baikal_vdu_rg_write,
-	.read = baikal_vdu_rg_read,
-};
-
 static const struct drm_info_list baikal_vdu_debugfs_list[] = {
 	{"regs", baikal_vdu_debugfs_regs, 0},
 };
 
 int baikal_vdu_debugfs_init(struct drm_minor *minor)
 {
-	struct drm_device *dev = minor->dev;
-	struct baikal_vdu_private *priv = dev->dev_private;
-	debugfs_create_file("htr", S_IWUSR, minor->debugfs_root, priv, &baikal_vdu_rg_fops);
-	debugfs_create_file("vtr", S_IWUSR, minor->debugfs_root, priv, &baikal_vdu_rg_fops);
 	return drm_debugfs_create_files(baikal_vdu_debugfs_list,
 					ARRAY_SIZE(baikal_vdu_debugfs_list),
 					minor->debugfs_root, minor);

@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Hisilicon HiP04 INTC
  *
  * Copyright (C) 2002-2014 ARM Limited.
  * Copyright (c) 2013-2014 Hisilicon Ltd.
  * Copyright (c) 2013-2014 Linaro Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * Interrupt architecture for the HIP04 INTC:
  *
@@ -130,12 +133,7 @@ static int hip04_irq_set_type(struct irq_data *d, unsigned int type)
 
 	raw_spin_lock(&irq_controller_lock);
 
-	ret = gic_configure_irq(irq, type, base + GIC_DIST_CONFIG, NULL);
-	if (ret && irq < 32) {
-		/* Misconfigured PPIs are usually not fatal */
-		pr_warn("GIC: PPI%d is secure or misconfigured\n", irq - 16);
-		ret = 0;
-	}
+	ret = gic_configure_irq(irq, type, base, NULL);
 
 	raw_spin_unlock(&irq_controller_lock);
 
@@ -166,8 +164,6 @@ static int hip04_irq_set_affinity(struct irq_data *d,
 	val = readl_relaxed(reg) & ~mask;
 	writel_relaxed(val | bit, reg);
 	raw_spin_unlock(&irq_controller_lock);
-
-	irq_data_update_effective_affinity(d, cpumask_of(cpu));
 
 	return IRQ_SET_MASK_OK;
 }
@@ -273,7 +269,7 @@ static void hip04_irq_cpu_init(struct hip04_irq_data *intc)
 		if (i != cpu)
 			hip04_cpu_map[i] &= ~cpu_mask;
 
-	gic_cpu_config(dist_base, 32, NULL);
+	gic_cpu_config(dist_base, NULL);
 
 	writel_relaxed(0xf0, base + GIC_CPU_PRIMASK);
 	writel_relaxed(1, base + GIC_CPU_CTRL);
@@ -316,7 +312,6 @@ static int hip04_irq_domain_map(struct irq_domain *d, unsigned int irq,
 		irq_set_chip_and_handler(irq, &hip04_irq_chip,
 					 handle_fasteoi_irq);
 		irq_set_probe(irq);
-		irqd_set_single_target(irq_desc_get_irq_data(irq_to_desc(irq)));
 	}
 	irq_set_chip_data(irq, d->host_data);
 	return 0;
@@ -412,7 +407,7 @@ hip04_of_init(struct device_node *node, struct device_node *parent)
 	set_handle_irq(hip04_handle_irq);
 
 	hip04_irq_dist_init(&hip04_data);
-	cpuhp_setup_state(CPUHP_AP_IRQ_HIP04_STARTING, "irqchip/hip04:starting",
+	cpuhp_setup_state(CPUHP_AP_IRQ_HIP04_STARTING, "AP_IRQ_HIP04_STARTING",
 			  hip04_irq_starting_cpu, NULL);
 	return 0;
 }

@@ -4,7 +4,12 @@
  * Driver for Marvell Integrated Dual-port
  * Multi-speed Ethernet Transceiver 88x2222
  *
- * Copyright (c) 2015, 2016, 2020 Baikal Electronics JSC.
+ * Now supports only 10GBASE-R (KR to SFP+) for one lane.
+ *
+ * Copyright (c) 2015,2016 Baikal Electronics JSC.
+ *
+ * Author:
+ *   Dmitry Dunaev <dmitry.dunaev@baikalelectronics.ru>
  *
  * This file is licensed under the terms of the GNU General Public License
  * version 2. This program is licensed "as is" without any warranty of any
@@ -32,7 +37,8 @@
 #include <linux/of_gpio.h>
 
 MODULE_DESCRIPTION("Marvell Ethernet Transceiver driver");
-MODULE_LICENSE("Proprietary");
+MODULE_AUTHOR("Dmitry Dunaev <dmitry.dunaev@baikalelectronics.ru>");
+MODULE_LICENSE("Proprinetary");
 
 /* 31.F002 Line side mode (ch.3.1.2, pg.46) */
 #define MV_MODE_LINE_SHF			8
@@ -170,9 +176,9 @@ static void *marvell_of_get_data(struct phy_device *phydev)
 	struct mv88x2222_data *pdata;
 	enum of_gpio_flags flags;
 	int ret;
-	char mode[32];
-	unsigned int i = 0;
-	const char *pm = mode;
+    char mode[32];
+    unsigned int i = 0;
+    const char *pm = mode;
 
 	pdata = devm_kzalloc(&phydev->mdio.dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
@@ -186,25 +192,25 @@ static void *marvell_of_get_data(struct phy_device *phydev)
 	}
 
 	pdata->line_mode = MV_MODE_LINE_DEFAULT;
-	ret = of_property_read_string(np, MV_MODE_LINE_OF_NAME, &pm);
+    ret = of_property_read_string(np, MV_MODE_LINE_OF_NAME, &pm);
 	if (!ret) {
-		for(i = 0; i < sizeof(line_modes) / sizeof(struct mode); ++i) {
-		    if(strcasecmp(line_modes[i].mode_name, pm) == 0) {
-			pdata->line_mode = line_modes[i].mode_num;
-			break;
-		    }
-		}
+        for(i = 0; i < sizeof(line_modes) / sizeof(struct mode); ++i) {
+            if(strcasecmp(line_modes[i].mode_name, pm) == 0) {
+                pdata->line_mode = line_modes[i].mode_num;
+                break;
+            }
+        }
 	}
 
 	pdata->host_mode = MV_MODE_HOST_DEFAULT;
-	ret = of_property_read_string(np, MV_MODE_HOST_OF_NAME, &pm);
+    ret = of_property_read_string(np, MV_MODE_HOST_OF_NAME, &pm);
 	if (!ret) {
-		for(i = 0; i < sizeof(host_modes) / sizeof(struct mode); ++i) {
-		    if(strcasecmp(host_modes[i].mode_name, pm) == 0) {
-			pdata->host_mode = host_modes[i].mode_num;
-			break;
-		    }
-		}
+        for(i = 0; i < sizeof(host_modes) / sizeof(struct mode); ++i) {
+            if(strcasecmp(host_modes[i].mode_name, pm) == 0) {
+                pdata->host_mode = host_modes[i].mode_num;
+                break;
+            }
+        }
 	}
 
 	/* Default value at now */
@@ -214,8 +220,7 @@ static void *marvell_of_get_data(struct phy_device *phydev)
 }
 
 static int marvell_soft_reset(struct phy_device *phydev) {
-	int ret = phy_write_mmd(phydev, MDIO_MMD_VEND2, MV_DEV_CHIP_RESET,
-				MV_SW_RST_ALL);
+	int ret = phy_write_mmd(phydev, MDIO_MMD_VEND2, MV_DEV_CHIP_RESET, MV_SW_RST_ALL);
 	int count = 50;
 
 	if (ret) {
@@ -231,18 +236,13 @@ static int marvell_soft_reset(struct phy_device *phydev) {
 	return 0;
 }
 
-static int marvell_config_init(struct phy_device *phydev)
-{
+static int marvell_config_init(struct phy_device *phydev) {	// add loobpack on here
 	struct mv88x2222_data *pdata = phydev->priv;
 	int ret;
 
-	ret = phy_write_mmd(phydev, MDIO_MMD_VEND2, MV_DEV_CHIP_HOST_LINE,
-			    pdata->line_mode | pdata->host_mode);
+	ret = phy_write_mmd(phydev, MDIO_MMD_VEND2, MV_DEV_CHIP_HOST_LINE, pdata->line_mode | pdata->host_mode);
 	if (ret)
-		return 1;
-
-        phydev->speed = SPEED_10000;
-        phydev->duplex = DUPLEX_FULL;
+		dev_warn(&phydev->mdio.dev, "phy mode set failed\n");
 
 	/*
 	 * This must be done after mode set;
@@ -253,23 +253,12 @@ static int marvell_config_init(struct phy_device *phydev)
 	
 	marvell_soft_reset(phydev);
 
-	dev_info(&phydev->mdio.dev, "phy(%d, %x)=%x\n", MDIO_MMD_VEND2,
-			MV_DEV_CHIP_HOST_LINE,
-			phy_read_mmd(phydev, MDIO_MMD_VEND2, MV_DEV_CHIP_HOST_LINE));
+	dev_info(&phydev->mdio.dev, "phy(%d, %x)=%x\n", MDIO_MMD_VEND2, MV_DEV_CHIP_HOST_LINE, phy_read_mmd(phydev, MDIO_MMD_VEND2, MV_DEV_CHIP_HOST_LINE));
 
-	linkmode_mod_bit(ETHTOOL_LINK_MODE_10000baseT_Full_BIT,
-			phydev->supported, 1);
-	linkmode_mod_bit(ETHTOOL_LINK_MODE_10000baseKX4_Full_BIT,
-			phydev->supported, 1);
-	linkmode_mod_bit(ETHTOOL_LINK_MODE_10000baseKR_Full_BIT,
-			phydev->supported, 1);
-	linkmode_mod_bit(ETHTOOL_LINK_MODE_Backplane_BIT,
-			phydev->supported, 1);
-	linkmode_mod_bit(ETHTOOL_LINK_MODE_Autoneg_BIT,
-			phydev->supported, 1);
-	linkmode_mod_bit(ETHTOOL_LINK_MODE_Asym_Pause_BIT,
-			phydev->supported, 1);
-	linkmode_mod_bit(ETHTOOL_LINK_MODE_Pause_BIT, phydev->supported, 1);
+	phydev->supported = 0;
+	phydev->supported |= SUPPORTED_Backplane;
+	phydev->supported |= SUPPORTED_10000baseKR_Full | SUPPORTED_10000baseR_FEC;
+	phydev->supported |= SUPPORTED_10000baseKX4_Full | SUPPORTED_1000baseKX_Full | SUPPORTED_2500baseX_Full;
 
 	phydev->pause = 0;
 	phydev->asym_pause = 0;
@@ -326,41 +315,52 @@ static int marvell_adjust_tx(struct phy_device *phydev)
 	return 1;
 }
 
-static int marvell_update_link(struct phy_device *phydev)
-{
+static int marvell_update_link(struct phy_device *phydev) {
 	int reg;
-	int host_mode = 0;
-	int line_mode = 0;
+    int host_mode = 0;
+    int line_mode = 0;
 
 	/* Default link status */
 	phydev->link = 1;
 
 	reg = phy_read_mmd(phydev, MDIO_MMD_VEND2, MV_DEV_CHIP_HOST_LINE);
-	if (reg < 0)
-	{
-		phydev->link = 0;
-		return 0;
-	}
+    if (reg < 0)
+    {
+        phydev->link = 0;
+        return 0;
+    }
 
-	host_mode = reg & 0x007F;
-	line_mode = reg & 0x7F00;
+    host_mode = reg & 0x007F;
+    line_mode = reg & 0x7F00;
 
 	/* Read host link status */
-	if (host_mode == MV_MODE_HOST_10GBX4)
-		reg = phy_read_mmd(phydev, MDIO_MMD_PHYXS, 0x1001);
-	else
-		reg = phy_read_mmd(phydev, MDIO_MMD_PHYXS, MDIO_STAT1);
+    if (host_mode ==  MV_MODE_HOST_10GBX4)
+    {
+        reg = phy_read_mmd(phydev, MDIO_MMD_PHYXS, 0x1001);
+    }
+    else
+    {
+	    reg = phy_read_mmd(phydev, MDIO_MMD_PHYXS, MDIO_STAT1);
+    } 
 
-	if ((reg < 0) || !(reg & MDIO_STAT1_LSTATUS))
+    if ((reg < 0) || !(reg & MDIO_STAT1_LSTATUS))
 		phydev->link = 0;
 
 	/* Read line link status */
-	if (line_mode == MV_MODE_LINE_10GBR)
-		reg = phy_read_mmd(phydev, MDIO_MMD_PCS, MDIO_STAT1);
-	else
-		reg = phy_read_mmd(phydev, MDIO_MMD_PCS, 0x2001);
+    if (line_mode == MV_MODE_LINE_10GBR)
+    {
+	    reg = phy_read_mmd(phydev, MDIO_MMD_PCS, MDIO_STAT1);
+    }
+    else
+    {
+        /*
+         * There we read the register fo 1000Base-X mode
+         * this mode WAS NOT CHECKED!!!
+         */
+        reg = phy_read_mmd(phydev, MDIO_MMD_PCS, 0x2001);
+    }
     
-	if ((reg < 0) || !(reg & MDIO_STAT1_LSTATUS))
+    if ((reg < 0) || !(reg & MDIO_STAT1_LSTATUS))
 		phydev->link = 0;
 
     	/* 
@@ -393,7 +393,12 @@ static int marvell_read_status(struct phy_device *phydev)
 
 static int marvell_config_aneg(struct phy_device *phydev)
 {
-	linkmode_copy(phydev->advertising, phydev->supported);
+	/* Not supported yet */
+	phydev->lp_advertising = 0;
+	phydev->autoneg = AUTONEG_DISABLE;
+
+    	/* Link partner advertising modes */
+	phydev->advertising = phydev->supported;
 
 	return 0;
 }
@@ -412,8 +417,7 @@ static int marvell_probe(struct phy_device *phydev)
 	}
 
 	phydev->priv = pdata;
-	dev_info(&phydev->mdio.dev, "probed %s at 0x%02x\n",
-		 phydev->drv->name, phydev->mdio.addr);
+	dev_info(&phydev->mdio.dev, "probed %s at 0x%02x\n", phydev->drv->name, phydev->mdio.addr);
     	reg = phy_read_mmd(phydev, MDIO_MMD_PCS, 0x0002);
 	
     return 0;
@@ -461,6 +465,7 @@ static struct phy_driver marvell_drivers[] = {
 		.soft_reset = marvell_soft_reset,
 		.resume = genphy_resume,
 		.suspend = marvell_suspend,
+		//MVP .driver = {.owner = THIS_MODULE },
 	},
 };
 module_phy_driver(marvell_drivers);

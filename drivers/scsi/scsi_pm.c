@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *	scsi_pm.c	Copyright (C) 2010 Alan Stern
  *
@@ -9,7 +8,6 @@
 #include <linux/pm_runtime.h>
 #include <linux/export.h>
 #include <linux/async.h>
-#include <linux/blk-pm.h>
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_device.h>
@@ -80,10 +78,6 @@ static int scsi_dev_type_resume(struct device *dev,
 	dev_dbg(dev, "scsi resume: %d\n", err);
 
 	if (err == 0) {
-		bool was_runtime_suspended;
-
-		was_runtime_suspended = pm_runtime_suspended(dev);
-
 		pm_runtime_disable(dev);
 		err = pm_runtime_set_active(dev);
 		pm_runtime_enable(dev);
@@ -97,9 +91,8 @@ static int scsi_dev_type_resume(struct device *dev,
 		 */
 		if (!err && scsi_is_sdev_device(dev)) {
 			struct scsi_device *sdev = to_scsi_device(dev);
-			if (was_runtime_suspended)
-				blk_post_runtime_resume(sdev->request_queue, 0);
-			else
+
+			if (sdev->request_queue->dev)
 				blk_set_runtime_active(sdev->request_queue);
 		}
 	}
@@ -181,7 +174,11 @@ static int scsi_bus_resume_common(struct device *dev,
 
 static int scsi_bus_prepare(struct device *dev)
 {
-	if (scsi_is_host_device(dev)) {
+	if (scsi_is_sdev_device(dev)) {
+		/* sd probing uses async_schedule.  Wait until it finishes. */
+		async_synchronize_full_domain(&scsi_sd_probe_domain);
+
+	} else if (scsi_is_host_device(dev)) {
 		/* Wait until async scanning is finished */
 		scsi_complete_async_scans();
 	}

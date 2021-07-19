@@ -78,8 +78,6 @@
 /* TEMP limits */
 #define TEMP_PVT_MAX 125000
 #define TEMP_PVT_MIN -40000
-#define TEMP_PVT_WARN   67000
-#define TEMP_PVT_REBOOT 75000
 /* Voltage limits */
 #define VOLT_PVT_MAX 800
 #define VOLT_PVT_MIN 1000
@@ -207,21 +205,12 @@ static int data2temp(int data)
 static irqreturn_t pvt_hwmon_irq(int irq, void *data)
 {
     long int val;
-    int tmp, temp;
     struct pvt_hwmon *hwmon = data;
     val = readl_pvt( hwmon->pvt_id , BK_PVT_INTR_STAT);
     if (BK_PVT_INTR_STAT_TTHRES_LO & val)
         printk(KERN_INFO "PVT WARNING Lo Temperature \n");
-    if (BK_PVT_INTR_STAT_TTHRES_HI & val) {
-        switch_pvt_mod(hwmon->pvt_id,BK_PVT_CTRL_TMOD);
-        tmp = read_valid_datareg(hwmon);
-        temp = data2temp(tmp);
-        printk(KERN_INFO "PVT WARNING Hi Temperature %d\n", temp);
-        if(temp > TEMP_PVT_REBOOT) {
-            printk(KERN_INFO "PVT TOO Hi Temperature (%d > %d), then pm_power_off!\n", temp, TEMP_PVT_REBOOT);
-            pm_power_off();
-        }
-    }
+    if (BK_PVT_INTR_STAT_TTHRES_HI & val)
+        printk(KERN_INFO "PVT WARNING Hi Temperature \n");
     if (BK_PVT_INTR_STAT_VTHRES_LO & val)
         printk(KERN_INFO "PVT WARNING Lo Voltage \n");
     if (BK_PVT_INTR_STAT_VTHRES_HI & val)
@@ -534,7 +523,6 @@ static const struct attribute_group pvt_attr_group = {
 static int pvt_probe(struct platform_device *pdev)
 {
     int ret;
-    unsigned int val, data;
     struct pvt_hwmon *hwmon;
     struct resource *mem;
     struct device_node *np = pdev->dev.of_node;
@@ -585,19 +573,12 @@ static int pvt_probe(struct platform_device *pdev)
         return ret;
     }
 
-    hwmon->hwmon = hwmon_device_register_with_info(&pdev->dev, pdev->name,
-						   hwmon, NULL, NULL);
+    hwmon->hwmon = hwmon_device_register(&pdev->dev);
     if (IS_ERR(hwmon->hwmon)) {
         ret = PTR_ERR(hwmon->hwmon);
         goto err_remove_file;
     }
-    //Set WARN temperature
-    mutex_lock(&hwmon->lock);
-    data = readl_pvt(hwmon->pvt_id , BK_PVT_TTHRES);
-    val = temp2data(TEMP_PVT_WARN);
-    data = ( (val<<10) & BK_PVT_THRES_HI) + (BK_PVT_THRES_LO & data);
-    writel_pvt( data, hwmon->pvt_id , BK_PVT_TTHRES);
-    mutex_unlock(&hwmon->lock);
+
     //Set Monitoring mod for temperature
     hwmon->mon_mod = 0;
     switch_to_mon_mod(hwmon);

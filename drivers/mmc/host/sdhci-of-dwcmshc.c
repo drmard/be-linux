@@ -51,16 +51,18 @@ static unsigned int dwcmshc_get_max_clock (struct sdhci_host *host)
 }
 
 static const struct sdhci_ops sdhci_dwcmshc_ops = {
+	.reset			= sdhci_reset,
 	.set_clock		= sdhci_set_clock,
 	.set_bus_width		= sdhci_set_bus_width,
 	.set_uhs_signaling	= sdhci_set_uhs_signaling,
 	.get_max_clock		= dwcmshc_get_max_clock,
-	.reset			= sdhci_reset,
 	.adma_write_desc	= dwcmshc_adma_write_desc,
 };
 
 static const struct sdhci_pltfm_data sdhci_dwcmshc_pdata = {
 	.ops = &sdhci_dwcmshc_ops,
+
+	/* Deviations from spec. */
 	.quirks = SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
 	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN | SDHCI_QUIRK2_BROKEN_64_BIT_DMA_MASK,
 };
@@ -75,8 +77,9 @@ static int dwcmshc_probe(struct platform_device *pdev)
 	u32 max;
 
 	host = sdhci_pltfm_init(pdev, &sdhci_dwcmshc_pdata, 0);
-	if (IS_ERR(host))
+	if (IS_ERR(host)){
 		return PTR_ERR(host);
+	}
 
 	/*
 	 * extra adma table cnt for cross 128M boundary handling.
@@ -92,7 +95,7 @@ static int dwcmshc_probe(struct platform_device *pdev)
 	pltfm_host->clk = devm_clk_get(&pdev->dev, "core");
 	if (IS_ERR(pltfm_host->clk)) {
 		err = PTR_ERR(pltfm_host->clk);
-		dev_err(&pdev->dev, "failed to get core clk: %d\n", err);
+		dev_err(&pdev->dev, "failed to get 'core' clk: %d\n", err);
 		goto free_pltfm;
 	}
 
@@ -101,25 +104,31 @@ static int dwcmshc_probe(struct platform_device *pdev)
 	clk_set_rate(pltfm_host->clk, max * MSHC_INPUT_DIVIDER);
 
 	err = clk_prepare_enable(pltfm_host->clk);
-	if (err)
+	if (err){
+		dev_err(&pdev->dev, "failed to prepare clk: %d\n", err);
 		goto free_pltfm;
+	}
 
 	err = mmc_of_parse(host->mmc);
-	if (err)
+	if (err){
+		dev_err(&pdev->dev, "failed to mmc_of_parse: %d\n", err);
 		goto err_clk;
+	}
 
 	sdhci_get_of_property(pdev);
 
 	err = sdhci_add_host(host);
-	if (err)
+	if (err){
+		dev_err(&pdev->dev, "failed to sdhci_add_host: %d\n", err);
 		goto err_clk;
-
+	}
 	return 0;
 
 err_clk:
 	clk_disable_unprepare(pltfm_host->clk);
 free_pltfm:
 	sdhci_pltfm_free(pdev);
+
 	return err;
 }
 
