@@ -29,20 +29,12 @@ bool pcie_ports_disabled;
  */
 bool pcie_ports_native;
 
-/*
- * If the user specified "pcie_ports=dpc-native", use the Linux DPC PCIe
- * service even if the platform hasn't given us permission.
- */
-bool pcie_ports_dpc_native;
-
 static int __init pcie_port_setup(char *str)
 {
 	if (!strncmp(str, "compat", 6))
 		pcie_ports_disabled = true;
 	else if (!strncmp(str, "native", 6))
 		pcie_ports_native = true;
-	else if (!strncmp(str, "dpc-native", 10))
-		pcie_ports_dpc_native = true;
 
 	return 1;
 }
@@ -115,7 +107,7 @@ static int pcie_portdrv_probe(struct pci_dev *dev,
 
 	pci_save_state(dev);
 
-	dev_pm_set_driver_flags(&dev->dev, DPM_FLAG_NO_DIRECT_COMPLETE |
+	dev_pm_set_driver_flags(&dev->dev, DPM_FLAG_NEVER_SKIP |
 					   DPM_FLAG_SMART_SUSPEND);
 
 	if (pci_bridge_d3_possible(dev)) {
@@ -146,7 +138,7 @@ static void pcie_portdrv_remove(struct pci_dev *dev)
 }
 
 static pci_ers_result_t pcie_portdrv_error_detected(struct pci_dev *dev,
-					pci_channel_state_t error)
+					enum pci_channel_state error)
 {
 	/* Root Port has no impact. Always recovers. */
 	return PCI_ERS_RESULT_CAN_RECOVER;
@@ -248,6 +240,7 @@ static void __init pcie_init_services(void)
 	pcie_pme_init();
 	pcie_dpc_init();
 	pcie_hp_init();
+	pcie_bandwidth_notification_init();
 }
 
 static int __init pcie_portdrv_init(void)

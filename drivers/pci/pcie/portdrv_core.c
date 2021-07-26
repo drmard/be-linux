@@ -37,20 +37,6 @@ static void release_pcie_device(struct device *dev)
 	kfree(to_pcie_device(dev));
 }
 
-/**
- * pcibios_check_service_irqs - check irqs in the device tree
- * @dev: PCI Express port to handle
- * @irqs: Array of irqs to populate
- * @mask: Bitmask of port capabilities returned by get_port_device_capability()
- *
- * Return value: 0 means no service irqs in the device tree
- *
- */
-int __weak pcibios_check_service_irqs(struct pci_dev *dev, int *irqs, int mask)
-{
-	return 0;
-}
-
 /*
  * Fill in *pme, *aer, *dpc with the relevant Interrupt Message Numbers if
  * services are enabled in "mask".  Return the number of MSI/MSI-X vectors
@@ -179,24 +165,9 @@ static int pcie_port_enable_irq_vec(struct pci_dev *dev, int *irqs, int mask)
 static int pcie_init_service_irqs(struct pci_dev *dev, int *irqs, int mask)
 {
 	int ret, i;
-	int irq = -1;
 
 	for (i = 0; i < PCIE_PORT_DEVICE_MAXSERVICES; i++)
 		irqs[i] = -1;
-
-	/* Check if some platforms owns independent irq pins for AER/PME etc.
-	 * Some platforms may own independent AER/PME interrupts and set
-	 * them in the device tree file.
-	 */
-	ret = pcibios_check_service_irqs(dev, irqs, mask);
-	if (ret) {
-		if (dev->irq)
-			irq = dev->irq;
-		for (i = 0; i < PCIE_PORT_DEVICE_MAXSERVICES; i++)
-			if (irqs[i] == -1)
-				irqs[i] = irq;
-		return 0;
-	}
 
 	/*
 	 * If we support PME but can't use MSI/MSI-X for it, we have to
@@ -279,13 +250,8 @@ static int get_port_device_capability(struct pci_dev *dev)
 		pcie_pme_interrupt_enable(dev, false);
 	}
 
-	/*
-	 * With dpc-native, allow Linux to use DPC even if it doesn't have
-	 * permission to use AER.
-	 */
 	if (pci_find_ext_capability(dev, PCI_EXT_CAP_ID_DPC) &&
-	    pci_aer_available() &&
-	    (pcie_ports_dpc_native || (services & PCIE_PORT_SERVICE_AER)))
+	    pci_aer_available() && services & PCIE_PORT_SERVICE_AER)
 		services |= PCIE_PORT_SERVICE_DPC;
 
 	if (pci_pcie_type(dev) == PCI_EXP_TYPE_DOWNSTREAM ||
@@ -485,6 +451,27 @@ static int find_service_iter(struct device *device, void *data)
 	}
 
 	return 0;
+}
+
+/**
+ * pcie_port_find_service - find the service driver
+ * @dev: PCI Express port the service is associated with
+ * @service: Service to find
+ *
+ * Find PCI Express port service driver associated with given service
+ */
+struct pcie_port_service_driver *pcie_port_find_service(struct pci_dev *dev,
+							u32 service)
+{
+	struct pcie_port_service_driver *drv;
+	struct portdrv_service_data pdrvs;
+
+	pdrvs.drv = NULL;
+	pdrvs.service = service;
+	device_for_each_child(&dev->dev, &pdrvs, find_service_iter);
+
+	drv = pdrvs.drv;
+	return drv;
 }
 
 /**

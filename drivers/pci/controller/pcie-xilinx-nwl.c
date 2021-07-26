@@ -166,6 +166,7 @@ struct nwl_pcie {
 	int irq_misc;
 	u32 ecam_value;
 	u8 last_busno;
+	u8 root_busno;
 	struct nwl_msi msi;
 	struct irq_domain *legacy_irq_domain;
 	raw_spinlock_t leg_mask_lock;
@@ -216,11 +217,13 @@ static bool nwl_pcie_valid_device(struct pci_bus *bus, unsigned int devfn)
 	struct nwl_pcie *pcie = bus->sysdata;
 
 	/* Check link before accessing downstream ports */
-	if (!pci_is_root_bus(bus)) {
+	if (bus->number != pcie->root_busno) {
 		if (!nwl_pcie_link_up(pcie))
 			return false;
-	} else if (devfn > 0)
-		/* Only one device down on each root port */
+	}
+
+	/* Only one device down on each root port */
+	if (bus->number == pcie->root_busno && devfn > 0)
 		return false;
 
 	return true;
@@ -583,6 +586,7 @@ static int nwl_pcie_enable_msi(struct nwl_pcie *pcie)
 	/* Get msi_1 IRQ number */
 	msi->irq_msi1 = platform_get_irq_byname(pdev, "msi1");
 	if (msi->irq_msi1 < 0) {
+		dev_err(dev, "failed to get IRQ#%d\n", msi->irq_msi1);
 		ret = -EINVAL;
 		goto err;
 	}
@@ -593,6 +597,7 @@ static int nwl_pcie_enable_msi(struct nwl_pcie *pcie)
 	/* Get msi_0 IRQ number */
 	msi->irq_msi0 = platform_get_irq_byname(pdev, "msi0");
 	if (msi->irq_msi0 < 0) {
+		dev_err(dev, "failed to get IRQ#%d\n", msi->irq_msi0);
 		ret = -EINVAL;
 		goto err;
 	}
@@ -723,8 +728,11 @@ static int nwl_pcie_bridge_init(struct nwl_pcie *pcie)
 
 	/* Get misc IRQ number */
 	pcie->irq_misc = platform_get_irq_byname(pdev, "misc");
-	if (pcie->irq_misc < 0)
+	if (pcie->irq_misc < 0) {
+		dev_err(dev, "failed to get misc IRQ %d\n",
+			pcie->irq_misc);
 		return -EINVAL;
+	}
 
 	err = devm_request_irq(dev, pcie->irq_misc,
 			       nwl_pcie_misc_handler, IRQF_SHARED,
@@ -789,8 +797,10 @@ static int nwl_pcie_parse_dt(struct nwl_pcie *pcie,
 
 	/* Get intx IRQ number */
 	pcie->irq_intx = platform_get_irq_byname(pdev, "intx");
-	if (pcie->irq_intx < 0)
+	if (pcie->irq_intx < 0) {
+		dev_err(dev, "failed to get intx IRQ %d\n", pcie->irq_intx);
 		return pcie->irq_intx;
+	}
 
 	irq_set_chained_handler_and_data(pcie->irq_intx,
 					 nwl_pcie_leg_handler, pcie);
@@ -807,8 +817,12 @@ static int nwl_pcie_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct nwl_pcie *pcie;
+	struct pci_bus *bus;
+	struct pci_bus *child;
 	struct pci_host_bridge *bridge;
 	int err;
+	resource_size_t iobase = 0;
+	LIST_HEAD(res);
 
 	bridge = devm_pci_alloc_host_bridge(dev, sizeof(*pcie));
 	if (!bridge)
@@ -831,24 +845,54 @@ static int nwl_pcie_probe(struct platform_device *pdev)
 		return err;
 	}
 
-	err = nwl_pcie_init_irq_domain(pcie);
+	err = devm_of_pci_get_host_bridge_resources(dev, 0, 0xff, &res,
+						    &iobase);
 	if (err) {
-		dev_err(dev, "Failed creating IRQ Domain\n");
+		dev_err(dev, "Getting bridge resources failed\n");
 		return err;
 	}
 
+	err = devm_request_pci_bus_resources(dev, &res);
+	if (err)
+		goto error;
+
+	err = nwl_pcie_init_irq_domain(pcie);
+	if (err) {
+		dev_err(dev, "Failed creating IRQ Domain\n");
+		goto error;
+	}
+
+	list_splice_init(&res, &bridge->windows);
+	bridge->dev.parent = dev;
 	bridge->sysdata = pcie;
+	bridge->busnr = pcie->root_busno;
 	bridge->ops = &nwl_pcie_ops;
+	bridge->map_irq = of_irq_parse_and_map_pci;
+	bridge->swizzle_irq = pci_common_swizzle;
 
 	if (IS_ENABLED(CONFIG_PCI_MSI)) {
 		err = nwl_pcie_enable_msi(pcie);
 		if (err < 0) {
 			dev_err(dev, "failed to enable MSI support: %d\n", err);
-			return err;
+			goto error;
 		}
 	}
 
-	return pci_host_probe(bridge);
+	err = pci_scan_root_bus_bridge(bridge);
+	if (err)
+		goto error;
+
+	bus = bridge->bus;
+
+	pci_assign_unassigned_bus_resources(bus);
+	list_for_each_entry(child, &bus->children, node)
+		pcie_bus_configure_settings(child);
+	pci_bus_add_devices(bus);
+	return 0;
+
+error:
+	pci_free_resource_list(&res);
+	return err;
 }
 
 static struct platform_driver nwl_pcie_driver = {

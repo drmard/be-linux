@@ -192,15 +192,8 @@ static const struct iproc_pcie_ib_map paxb_v2_ib_map[] = {
 		.imap_window_offset = 0x4,
 	},
 	{
-		/* IARR1/IMAP1 */
-		.type = IPROC_PCIE_IB_MAP_MEM,
-		.size_unit = SZ_1M,
-		.region_sizes = { 8 },
-		.nr_sizes = 1,
-		.nr_windows = 8,
-		.imap_addr_offset = 0x4,
-		.imap_window_offset = 0x8,
-
+		/* IARR1/IMAP1 (currently unused) */
+		.type = IPROC_PCIE_IB_MAP_INVALID,
 	},
 	{
 		/* IARR2/IMAP2 */
@@ -358,8 +351,6 @@ static const u16 iproc_pcie_reg_paxb_v2[IPROC_PCIE_MAX_NUM_REG] = {
 	[IPROC_PCIE_OMAP3]		= 0xdf8,
 	[IPROC_PCIE_IARR0]		= 0xd00,
 	[IPROC_PCIE_IMAP0]		= 0xc00,
-	[IPROC_PCIE_IARR1]		= 0xd08,
-	[IPROC_PCIE_IMAP1]		= 0xd70,
 	[IPROC_PCIE_IARR2]		= 0xd10,
 	[IPROC_PCIE_IMAP2]		= 0xcc0,
 	[IPROC_PCIE_IARR3]		= 0xe00,
@@ -1131,16 +1122,15 @@ static int iproc_pcie_ib_write(struct iproc_pcie *pcie, int region_idx,
 }
 
 static int iproc_pcie_setup_ib(struct iproc_pcie *pcie,
-			       struct resource_entry *entry,
+			       struct of_pci_range *range,
 			       enum iproc_pcie_ib_map_type type)
 {
 	struct device *dev = pcie->dev;
 	struct iproc_pcie_ib *ib = &pcie->ib;
 	int ret;
 	unsigned int region_idx, size_idx;
-	u64 axi_addr = entry->res->start;
-	u64 pci_addr = entry->res->start - entry->offset;
-	resource_size_t size = resource_size(entry->res);
+	u64 axi_addr = range->cpu_addr, pci_addr = range->pci_addr;
+	resource_size_t size = range->size;
 
 	/* iterate through all IARR mapping regions */
 	for (region_idx = 0; region_idx < ib->nr_regions; region_idx++) {
@@ -1192,46 +1182,67 @@ err_ib:
 	return ret;
 }
 
+static int iproc_pcie_add_dma_range(struct device *dev,
+				    struct list_head *resources,
+				    struct of_pci_range *range)
+{
+	struct resource *res;
+	struct resource_entry *entry, *tmp;
+	struct list_head *head = resources;
+
+	res = devm_kzalloc(dev, sizeof(struct resource), GFP_KERNEL);
+	if (!res)
+		return -ENOMEM;
+
+	resource_list_for_each_entry(tmp, resources) {
+		if (tmp->res->start < range->cpu_addr)
+			head = &tmp->node;
+	}
+
+	res->start = range->cpu_addr;
+	res->end = res->start + range->size - 1;
+
+	entry = resource_list_create_entry(res, 0);
+	if (!entry)
+		return -ENOMEM;
+
+	entry->offset = res->start - range->cpu_addr;
+	resource_list_add(entry, head);
+
+	return 0;
+}
+
 static int iproc_pcie_map_dma_ranges(struct iproc_pcie *pcie)
 {
 	struct pci_host_bridge *host = pci_host_bridge_from_priv(pcie);
-	struct resource_entry *entry;
-	int ret = 0;
+	struct of_pci_range range;
+	struct of_pci_range_parser parser;
+	int ret;
+	LIST_HEAD(resources);
 
-	resource_list_for_each_entry(entry, &host->dma_ranges) {
-		/* Each range entry corresponds to an inbound mapping region */
-		ret = iproc_pcie_setup_ib(pcie, entry, IPROC_PCIE_IB_MAP_MEM);
+	/* Get the dma-ranges from DT */
+	ret = of_pci_dma_range_parser_init(&parser, pcie->dev->of_node);
+	if (ret)
+		return ret;
+
+	for_each_of_pci_range(&parser, &range) {
+		ret = iproc_pcie_add_dma_range(pcie->dev,
+					       &resources,
+					       &range);
 		if (ret)
-			break;
+			goto out;
+		/* Each range entry corresponds to an inbound mapping region */
+		ret = iproc_pcie_setup_ib(pcie, &range, IPROC_PCIE_IB_MAP_MEM);
+		if (ret)
+			goto out;
 	}
 
+	list_splice_init(&resources, &host->dma_ranges);
+
+	return 0;
+out:
+	pci_free_resource_list(&resources);
 	return ret;
-}
-
-static void iproc_pcie_invalidate_mapping(struct iproc_pcie *pcie)
-{
-	struct iproc_pcie_ib *ib = &pcie->ib;
-	struct iproc_pcie_ob *ob = &pcie->ob;
-	int idx;
-
-	if (pcie->ep_is_internal)
-		return;
-
-	if (pcie->need_ob_cfg) {
-		/* iterate through all OARR mapping regions */
-		for (idx = ob->nr_windows - 1; idx >= 0; idx--) {
-			iproc_pcie_write_reg(pcie,
-					     MAP_REG(IPROC_PCIE_OARR0, idx), 0);
-		}
-	}
-
-	if (pcie->need_ib_cfg) {
-		/* iterate through all IARR mapping regions */
-		for (idx = 0; idx < ib->nr_regions; idx++) {
-			iproc_pcie_write_reg(pcie,
-					     MAP_REG(IPROC_PCIE_IARR0, idx), 0);
-		}
-	}
 }
 
 static int iproce_pcie_get_msi(struct iproc_pcie *pcie,
@@ -1265,16 +1276,13 @@ static int iproce_pcie_get_msi(struct iproc_pcie *pcie,
 static int iproc_pcie_paxb_v2_msi_steer(struct iproc_pcie *pcie, u64 msi_addr)
 {
 	int ret;
-	struct resource_entry entry;
+	struct of_pci_range range;
 
-	memset(&entry, 0, sizeof(entry));
-	entry.res = &entry.__res;
+	memset(&range, 0, sizeof(range));
+	range.size = SZ_32K;
+	range.pci_addr = range.cpu_addr = msi_addr & ~(range.size - 1);
 
-	msi_addr &= ~(SZ_32K - 1);
-	entry.res->start = msi_addr;
-	entry.res->end = msi_addr + SZ_32K - 1;
-
-	ret = iproc_pcie_setup_ib(pcie, &entry, IPROC_PCIE_IB_MAP_IO);
+	ret = iproc_pcie_setup_ib(pcie, &range, IPROC_PCIE_IB_MAP_IO);
 	return ret;
 }
 
@@ -1479,6 +1487,7 @@ int iproc_pcie_setup(struct iproc_pcie *pcie, struct list_head *res)
 {
 	struct device *dev;
 	int ret;
+	struct pci_bus *child;
 	struct pci_host_bridge *host = pci_host_bridge_from_priv(pcie);
 
 	dev = pcie->dev;
@@ -1488,6 +1497,10 @@ int iproc_pcie_setup(struct iproc_pcie *pcie, struct list_head *res)
 		dev_err(dev, "unable to initialize controller parameters\n");
 		return ret;
 	}
+
+	ret = devm_request_pci_bus_resources(dev, res);
+	if (ret)
+		return ret;
 
 	ret = phy_init(pcie->phy);
 	if (ret) {
@@ -1503,8 +1516,6 @@ int iproc_pcie_setup(struct iproc_pcie *pcie, struct list_head *res)
 
 	iproc_pcie_perst_ctrl(pcie, true);
 	iproc_pcie_perst_ctrl(pcie, false);
-
-	iproc_pcie_invalidate_mapping(pcie);
 
 	if (pcie->need_ob_cfg) {
 		ret = iproc_pcie_map_ranges(pcie, res);
@@ -1532,15 +1543,28 @@ int iproc_pcie_setup(struct iproc_pcie *pcie, struct list_head *res)
 		if (iproc_pcie_msi_enable(pcie))
 			dev_info(dev, "not using iProc MSI\n");
 
+	list_splice_init(res, &host->windows);
+	host->busnr = 0;
+	host->dev.parent = dev;
 	host->ops = &iproc_pcie_ops;
 	host->sysdata = pcie;
 	host->map_irq = pcie->map_irq;
+	host->swizzle_irq = pci_common_swizzle;
 
-	ret = pci_host_probe(host);
+	ret = pci_scan_root_bus_bridge(host);
 	if (ret < 0) {
 		dev_err(dev, "failed to scan host: %d\n", ret);
 		goto err_power_off_phy;
 	}
+
+	pci_assign_unassigned_bus_resources(host->bus);
+
+	pcie->root_bus = host->bus;
+
+	list_for_each_entry(child, &host->bus->children, node)
+		pcie_bus_configure_settings(child);
+
+	pci_bus_add_devices(host->bus);
 
 	return 0;
 
@@ -1554,10 +1578,8 @@ EXPORT_SYMBOL(iproc_pcie_setup);
 
 int iproc_pcie_remove(struct iproc_pcie *pcie)
 {
-	struct pci_host_bridge *host = pci_host_bridge_from_priv(pcie);
-
-	pci_stop_root_bus(host->bus);
-	pci_remove_root_bus(host->bus);
+	pci_stop_root_bus(pcie->root_bus);
+	pci_remove_root_bus(pcie->root_bus);
 
 	iproc_pcie_msi_disable(pcie);
 

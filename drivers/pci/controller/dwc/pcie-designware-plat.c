@@ -39,7 +39,9 @@ static int dw_plat_pcie_host_init(struct pcie_port *pp)
 
 	dw_pcie_setup_rc(pp);
 	dw_pcie_wait_for_link(pci);
-	dw_pcie_msi_init(pp);
+
+	if (IS_ENABLED(CONFIG_PCI_MSI))
+		dw_pcie_msi_init(pp);
 
 	return 0;
 }
@@ -68,7 +70,7 @@ static void dw_plat_pcie_ep_init(struct dw_pcie_ep *ep)
 	struct dw_pcie *pci = to_dw_pcie_from_ep(ep);
 	enum pci_barno bar;
 
-	for (bar = 0; bar < PCI_STD_NUM_BARS; bar++)
+	for (bar = BAR_0; bar <= BAR_5; bar++)
 		dw_pcie_ep_reset_bar(pci, bar);
 }
 
@@ -151,7 +153,8 @@ static int dw_plat_add_pcie_ep(struct dw_plat_pcie *dw_plat_pcie,
 	ep = &pci->ep;
 	ep->ops = &pcie_ep_ops;
 
-	pci->dbi_base2 = devm_platform_ioremap_resource_byname(pdev, "dbi2");
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dbi2");
+	pci->dbi_base2 = devm_ioremap_resource(dev, res);
 	if (IS_ERR(pci->dbi_base2))
 		return PTR_ERR(pci->dbi_base2);
 
