@@ -101,7 +101,7 @@ static int baikal_pcie_link_up(struct dw_pcie *pcie)
 	       (reg & BAIKAL_PCIE_RDLH_LINKUP);
 }
 
-static int baikal_pcie_host_init(struct pcie_port *pp)
+static int baikal_pcie_host_init(struct pcie_port *pp)       xxx
 {
 	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
 	struct baikal_pcie_rc *rc = to_baikal_pcie_rc(pcie);
