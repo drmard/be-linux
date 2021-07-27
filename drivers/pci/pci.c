@@ -129,12 +129,18 @@ static bool pci_bridge_d3_disable;
 /* Force bridge_d3 for all PCIe ports */
 static bool pci_bridge_d3_force;
 
+bool pci_bridge_d3_disable_be;
+bool pci_bridge_d3_force_be;
+
 static int __init pcie_port_pm_setup(char *str)
 {
 	if (!strcmp(str, "off"))
 		pci_bridge_d3_disable = true;
 	else if (!strcmp(str, "force"))
 		pci_bridge_d3_force = true;
+
+	pci_bridge_d3_disable_be = pci_bridge_d3_disable;
+	pci_bridge_d3_force_be = pci_bridge_d3_force;
 	return 1;
 }
 __setup("pcie_port_pm=", pcie_port_pm_setup);
@@ -751,6 +757,7 @@ static void pci_restore_bars(struct pci_dev *dev)
 }
 
 static const struct pci_platform_pm_ops *pci_platform_pm;
+struct pci_platform_pm_ops *pci_platform_pm_be = pci_platform_pm;
 
 int pci_set_platform_pm(const struct pci_platform_pm_ops *ops)
 {
