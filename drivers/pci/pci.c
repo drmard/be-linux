@@ -129,18 +129,12 @@ static bool pci_bridge_d3_disable;
 /* Force bridge_d3 for all PCIe ports */
 static bool pci_bridge_d3_force;
 
-bool pci_bridge_d3_disable_be;
-bool pci_bridge_d3_force_be;
-
 static int __init pcie_port_pm_setup(char *str)
 {
 	if (!strcmp(str, "off"))
 		pci_bridge_d3_disable = true;
 	else if (!strcmp(str, "force"))
 		pci_bridge_d3_force = true;
-
-	pci_bridge_d3_disable_be = pci_bridge_d3_disable;
-	pci_bridge_d3_force_be = pci_bridge_d3_force;
 	return 1;
 }
 __setup("pcie_port_pm=", pcie_port_pm_setup);
@@ -757,7 +751,6 @@ static void pci_restore_bars(struct pci_dev *dev)
 }
 
 static const struct pci_platform_pm_ops *pci_platform_pm;
-struct pci_platform_pm_ops *pci_platform_pm_be = pci_platform_pm;
 
 int pci_set_platform_pm(const struct pci_platform_pm_ops *ops)
 {
@@ -3478,7 +3471,14 @@ u32 pci_rebar_get_possible_sizes(struct pci_dev *pdev, int bar)
 		return 0;
 
 	pci_read_config_dword(pdev, pos + PCI_REBAR_CAP, &cap);
-	return (cap & PCI_REBAR_CAP_SIZES) >> 4;
+	cap &= PCI_REBAR_CAP_SIZES;
+
+	/* Sapphire RX 5600 XT Pulse has an invalid cap dword for BAR 0 */
+	if (pdev->vendor == PCI_VENDOR_ID_ATI && pdev->device == 0x731f &&
+	    bar == 0 && cap == 0x7000)
+		cap = 0x3f000;
+
+	return cap >> 4;
 }
 
 /**
@@ -3903,6 +3903,10 @@ int pci_register_io_range(struct fwnode_handle *fwnode, phys_addr_t addr,
 	ret = logic_pio_register_range(range);
 	if (ret)
 		kfree(range);
+
+	/* Ignore duplicates due to deferred probing */
+	if (ret == -EEXIST)
+		ret = 0;
 #endif
 
 	return ret;

@@ -9,17 +9,12 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/pci.h>
-#include <linux/pci_hotplug.h>
 #include <linux/errno.h>
 #include <linux/ioport.h>
 #include <linux/proc_fs.h>
 #include <linux/slab.h>
 
 #include "pci.h"
-
-extern bool pci_bridge_d3_disable_be;
-extern bool pci_bridge_d3_force_be;
-extern struct pci_platform_pm_ops *pci_platform_pm_be;
 
 void pci_add_resource_offset(struct list_head *resources, struct resource *res,
 			     resource_size_t offset)
@@ -131,154 +126,6 @@ static struct pci_bus_region pci_64_bit = {0,
 static struct pci_bus_region pci_high = {(pci_bus_addr_t) 0x100000000ULL,
 				(pci_bus_addr_t) 0xffffffffffffffffULL};
 #endif
-#define pci_bus_for_each_resource_be(bus, res, i)				\
-	for (i = 0;							\
-	    (res = pci_bus_resource_n(bus, i)) || i < PCI_BRIDGE_RESOURCE_NUM; \
-	     i++)
-
-    int __must_check pci_bus_alloc_resource(struct pci_bus *bus,
-			struct resource *res, resource_size_t size,
-			resource_size_t align, resource_size_t min,
-			unsigned long type_mask,
-			resource_size_t (*alignf)(void *,
-						  const struct resource *,
-						  resource_size_t,
-						  resource_size_t),
-			void *alignf_data);
-static bool region_contains_be(struct pci_bus_region *region1,
-			    struct pci_bus_region *region2)
-{
-	return region1->start <= region2->start && region1->end >= region2->end;
-}
-
-void pcibios_resource_to_bus_be(struct pci_bus *bus, struct pci_bus_region *region,
-			     struct resource *res)
-{
-	struct pci_host_bridge *bridge = pci_find_host_bridge(bus);
-	struct resource_entry *window;
-	resource_size_t offset = 0;
-
-	resource_list_for_each_entry(window, &bridge->windows) {
-		if (resource_contains(window->res, res)) {
-			offset = window->offset;
-			break;
-		}
-	}
-
-	region->start = res->start - offset;
-	region->end = res->end - offset;
-}
-
-static inline bool platform_pci_bridge_d3_be(struct pci_dev *dev)
-{
-	if (pci_platform_pm_be && pci_platform_pm_be->bridge_d3)
-		return pci_platform_pm_be->bridge_d3(dev);
-	return false;
-}
-
-void pcibios_bus_to_resource_be(struct pci_bus *bus, struct resource *res,
-			     struct pci_bus_region *region)
-{
-	struct pci_host_bridge *bridge = pci_find_host_bridge(bus);
-	struct resource_entry *window;
-	resource_size_t offset = 0;
-
-	resource_list_for_each_entry(window, &bridge->windows) {
-		struct pci_bus_region bus_region;
-
-		if (resource_type(res) != resource_type(window->res))
-			continue;
-
-		bus_region.start = window->res->start - window->offset;
-		bus_region.end = window->res->end - window->offset;
-
-		if (region_contains_be(&bus_region, region)) {
-			offset = window->offset;
-			break;
-		}
-	}
-
-	res->start = region->start + offset;
-	res->end = region->end + offset;
-}
-
-bool pci_bridge_d3_possible_be(struct pci_dev *bridge)
-{
-	if (!pci_is_pcie(bridge))
-		return false;
-
-	switch (pci_pcie_type(bridge)) {
-	case PCI_EXP_TYPE_ROOT_PORT:
-	case PCI_EXP_TYPE_UPSTREAM:
-	case PCI_EXP_TYPE_DOWNSTREAM:
-		if (pci_bridge_d3_disable_be)
-			return false;
-
-		/*
-		 * Hotplug ports handled by firmware in System Management Mode
-		 * may not be put into D3 by the OS (Thunderbolt on non-Macs).
-		 */
-		if (bridge->is_hotplug_bridge && !pciehp_is_native(bridge))
-			return false;
-
-		//if (pci_bridge_d3_force)
-		if (pci_bridge_d3_force_be)
-			return true;
-
-		/* Even the oldest 2010 Thunderbolt controller supports D3. */
-		if (bridge->is_thunderbolt)
-			return true;
-
-		/* Platform might know better if the bridge supports D3 */
-		if (platform_pci_bridge_d3_be(bridge))
-			return true;
-
-		/*
-		 * Hotplug ports handled natively by the OS were not validated
-		 * by vendors for runtime D3 at least until 2018 because there
-		 * was no OS support.
-		 */
-		if (bridge->is_hotplug_bridge)
-			return false;
-
-		if (dmi_check_system(bridge_d3_blacklist))
-			return false;
-
-		/*
-		 * It should be safe to put PCIe ports from 2015 or newer
-		 * to D3.
-		 */
-		if (dmi_get_bios_year() >= 2015)
-			return true;
-		break;
-	}
-
-	return false;
-}
-
-void pci_bridge_d3_update_be(struct pci_dev *dev)
-{
-	bool remove = !device_is_registered(&dev->dev);
-	struct pci_dev *bridge;
-	bool d3cold_ok = true;
-	bridge = pci_upstream_bridge(dev);
-	if (!bridge || !pci_bridge_d3_possible_be(bridge))
-		return;
-	if (remove && bridge->bridge_d3)
-		return;
-
-	if (!remove)
-		pci_dev_check_d3cold(dev, &d3cold_ok);
-
-	if (d3cold_ok && !bridge->bridge_d3)
-		pci_walk_bus(bridge->subordinate, pci_dev_check_d3cold,
-			     &d3cold_ok);
-
-	if (bridge->bridge_d3 != d3cold_ok) {
-		bridge->bridge_d3 = d3cold_ok;
-		pci_bridge_d3_update_be(bridge);
-	}
-}
 
 /*
  * @res contains CPU addresses.  Clip it so the corresponding bus addresses
@@ -292,7 +139,7 @@ static void pci_clip_resource_to_region(struct pci_bus *bus,
 {
 	struct pci_bus_region r;
 
-	pcibios_resource_to_bus_be(bus, &r, res);
+	pcibios_resource_to_bus(bus, &r, res);
 	if (r.start < region->start)
 		r.start = region->start;
 	if (r.end > region->end)
@@ -301,7 +148,7 @@ static void pci_clip_resource_to_region(struct pci_bus *bus,
 	if (r.end < r.start)
 		res->end = res->start - 1;
 	else
-		pcibios_bus_to_resource_be(bus, res, &r);
+		pcibios_bus_to_resource(bus, res, &r);
 }
 
 static int pci_bus_alloc_from_region(struct pci_bus *bus, struct resource *res,
@@ -320,7 +167,7 @@ static int pci_bus_alloc_from_region(struct pci_bus *bus, struct resource *res,
 
 	type_mask |= IORESOURCE_TYPE_BITS;
 
-	pci_bus_for_each_resource_be(bus, r, i) {
+	pci_bus_for_each_resource(bus, r, i) {
 		resource_size_t min_used = min;
 
 		if (!r)
@@ -419,7 +266,7 @@ bool pci_bus_clip_resource(struct pci_dev *dev, int idx)
 	struct resource *r;
 	int i;
 
-	pci_bus_for_each_resource_be(bus, r, i) {
+	pci_bus_for_each_resource(bus, r, i) {
 		resource_size_t start, end;
 
 		if (!r)
@@ -471,7 +318,7 @@ void pci_bus_add_device(struct pci_dev *dev)
 	pci_fixup_device(pci_fixup_final, dev);
 	pci_create_sysfs_dev_files(dev);
 	pci_proc_attach_device(dev);
-	pci_bridge_d3_update_be(dev);
+	pci_bridge_d3_update(dev);
 
 	dev->match_driver = true;
 	retval = device_attach(&dev->dev);
