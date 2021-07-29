@@ -166,7 +166,7 @@ struct pcie_port {
 	
     struct device		*dev;
 	u8			         root_bus_nr;
-    void __iomem         dbi_base;
+    void __iomem         *dbi_base;
 	u64			         cfg0_base;
 	void __iomem	    *va_cfg0_base;
 	u32			         cfg0_size;

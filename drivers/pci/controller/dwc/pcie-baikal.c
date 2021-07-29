@@ -36,6 +36,8 @@ struct baikal_pcie_rc {
 
 #define to_baikal_pcie_rc(x)	dev_get_drvdata((x)->dev)
 
+#define BE_PCIE_MSI_RCNUM_MASK(x)		(0x3 << (2 * (x)))
+
 #define PCIE_DEVICE_CONTROL_DEVICE_STATUS_REG	0x78
 #define PCIE_CAP_CORR_ERR_REPORT_EN		BIT(0)
 #define PCIE_CAP_NON_FATAL_ERR_REPORT_EN	BIT(1)
@@ -111,6 +113,20 @@ static int baikal_pcie_link_up(struct dw_pcie *pcie) {
   	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_STATUS(rc->bus_nr));
   	//return (reg & BAIKAL_PCIE_SMLH_LINKUP) && (reg & BAIKAL_PCIE_RDLH_LINKUP);
         return !!(reg & (BAIKAL_PCIE_RDLH_LINKUP | BAIKAL_PCIE_SMLH_LINKUP));
+}
+
+int dw_pcie_cfg_write(void __iomem *addr, int size, u32 val) {
+	if ((uintptr_t)addr & (size - 1))
+		return PCIBIOS_BAD_REGISTER_NUMBER;
+	if (size == 4)
+		writel(val, addr);
+	else if (size == 2)
+		writew(val, addr);
+	else if (size == 1)
+		writeb(val, addr);
+	else
+		return PCIBIOS_BAD_REGISTER_NUMBER;
+	return PCIBIOS_SUCCESSFUL;
 }
 
 static int baikal_pcie_host_init(struct pcie_port *pp)
@@ -349,6 +365,53 @@ static bool baikal_pcie_link_wait_training_done(struct baikal_pcie_rc *rc)
 	return true;
 }
 
+
+static int baikal_pcie_get_msi(struct baikal_pcie_rc *rc,
+			struct device_node *msi_node, u64 *msi_addr)
+{
+	struct pcie_port *pp = &rc->pp;
+	struct device *dev = pp->dev;
+	int ret;
+	struct resource res;
+	/*
+	 * Check if 'msi-parent' points to ARM GICv3 ITS, which is the only
+	 * supported MSI controller.
+	 */
+	if (!of_device_is_compatible(msi_node, "arm,gic-v3-its")) {
+		dev_err(dev, "unable to find compatible MSI controller\n");
+        printk(KERN_INFO "%s: PCIE:BAIKAL - error of baikal_pcie_get_msi() \n",__func__);
+		return -ENODEV;
+	}
+	/* derive GITS_TRANSLATER address from GICv3 */
+	ret = of_address_to_resource(msi_node, 0, &res);
+	if (ret < 0) {
+		dev_err(dev, "unable to obtain MSI controller resources\n");
+		return ret;
+	}
+	*msi_addr = res.start + GITS_TRANSLATER;
+	return 0;
+}
+
+static int baikal_pcie_msi_steer(struct baikal_pcie_rc *rc,struct device_node *msi_node)
+{
+	struct pcie_port *pp = &rc->pp;
+	struct device *dev = pp->dev;
+	int ret;
+	u64 msi_addr;
+	ret = baikal_pcie_get_msi(rc, msi_node, &msi_addr);
+	if (ret < 0) {
+		dev_err(dev, "MSI steering failed\n");
+		return ret;
+	}
+
+	/* Program the msi_data */
+	dw_pcie_cfg_write(pp->dbi_base + PCIE_MSI_ADDR_LO, 4,
+			lower_32_bits(msi_addr));
+	dw_pcie_cfg_write(pp->dbi_base + PCIE_MSI_ADDR_HI, 4,
+			upper_32_bits(msi_addr));
+	return 0;
+}
+
 static void baikal_pcie_link_retrain(struct baikal_pcie_rc *rc,
 				     int target_speed)
 {
@@ -483,6 +546,36 @@ static void baikal_pcie_link_retrain_bus(const struct pci_bus *bus)
 	}
 }
 
+static int baikal_pcie_msi_enable(struct baikal_pcie_rc *rc)
+{
+	struct pcie_port *pp = &rc->pp;
+	struct device *dev = pp->dev;
+	struct device_node *msi_node;
+	int ret;
+
+	/*
+	 * The "msi-parent" phandle needs to exist
+	 * for us to obtain the MSI node.
+	 */
+    if (dev != NULL)
+	  msi_node = of_parse_phandle(dev->of_node, "msi-parent", 0);
+    else
+      return -ENODEV;
+
+	if (!msi_node) {
+        printk(KERN_INFO "%s: PCIE:BAIKAL - cannot get msi_node \n",__func__);
+		return -ENODEV;
+    }
+
+	ret = baikal_pcie_msi_steer(rc, msi_node);
+	if (ret)
+		goto out_put_node;
+
+out_put_node:
+	of_node_put(msi_node);
+	return ret;
+}
+
 static irqreturn_t baikal_pcie_err_irq_handler(int irq, void *priv)
 {
 	struct baikal_pcie_rc *rc = priv;
@@ -523,65 +616,66 @@ static int __init baikal_pcie_add_pcie_port(
     int irq, ret;
     struct resource *res;
     struct dw_pcie *pcie = rc->pcie;
-    struct pcie_port *pp = &pcie->pp;
-    //struct device *dev 
+    struct pcie_port *pp = &rc->pp;
     pp->dev = &pdev->dev;
-    //pp->dev = &pdev->dev;
     res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dbi");
     if (res) {
-		/*pp->dbi_base*/dbi_base = devm_ioremap(/*pp->dev*/dev, res->start, resource_size(res));
-		if (/*!pp->dbi_base*/!dbi_base) {
-			dev_err(/*pp->dev*/dev, "error with ioremap\n");
+		pp->dbi_base = devm_ioremap(pp->dev, res->start, resource_size(res));
+		if (!pp->dbi_base) {
+			dev_err(pp->dev, "error with ioremap\n");
 			return -ENOMEM;
 		}
 	} else {
-		dev_err(/*pp->dev*/dev, "missing *dbi* reg space\n");
+        printk(KERN_INFO "%s PCIE:BAIKAL - missing dbi_base in pcie_port\n",__func__);
+		dev_err(pp->dev, "missing *dbi* reg space\n");
 		return -EINVAL;
 	}
-
-	pp->irq = platform_get_irq(pdev, 0);
-	if (pp->irq < 0) {
-		dev_err(dev, "missing IRQ resource: %d\n", pp->irq);
+	//pp->irq 
+    irq = platform_get_irq(pdev, 0);
+	if (irq < 0) {
+		dev_err(pp->dev, "missing IRQ resource: %d\n", irq);
         printk(KERN_INFO "PCIE:BAIKAL -%s Error:missing IRQ resource\n",__func__);
-		return pp->irq;
+		return irq;
 	}
-        /*
+    
 	ret = request_irq(irq, baikal_pcie_err_irq_handler, IRQF_SHARED, "baikal-pcie-error-irq", rc);
 	if (ret < 0) {
-		dev_err(dev, "failed to request error IRQ %d\n",irq);
+		dev_err(pp->dev, "failed to request error IRQ %d\n",irq);
 		printk (KERN_INFO "PCIE:BAIKAL -%s Error:for request IRQ\n",__func__);
 		return ret;
 	}
 	if (IS_ENABLED(CONFIG_PCI_MSI)) {
 		ret = baikal_pcie_msi_enable(rc);
 		if (ret) {
-			dev_err(pp->dev, "failed to initialize MSI\n");return ret;
+		  dev_err(pp->dev, "failed to initialize MSI\n");
+          printk(KERN_INFO "%s: PCIE:BAIKAL - failed to init MSI \n",__func__);
+          return ret;
 		}
-	}*/
-	ret = devm_request_irq (dev,pp->irq,baikal_pcie_err_irq_handler,IRQF_SHARED,"baikal-pcie-error-irq",pcie) ;
+	}  /*
+	ret = devm_request_irq (dev,pp->irq,baikal_pcie_err_irq_handler,
+      IRQF_SHARED,"baikal-pcie-error-irq",pcie) ;
     if(ret) {
           dev_err(dev,"failed to request irq %d\n",pp->irq);
           return ret;
-        }
-        if (IS_ENABLED(CONFIG_PCI_MSI)){
+    }
+    if (IS_ENABLED(CONFIG_PCI_MSI)) {
           pp->msi_irq = platform_get_irq(pdev,1);
           if (pp->msi_irq < 0) {
             printk (KERN_INFO "PCIE:BAIKAL -%s Error:get incorrect MSI IRQ for Baikal device\n",__func__);
             return  pp->msi_irq;
           }
-        }
+    }   */
 	pp->root_bus_nr = -1;
 	pp->ops = &baikal_pcie_host_ops;
 	//baikal_pcie_fine_tune(pp);
-
 	ret = dw_pcie_host_init(pp);
 	if (ret) {
-          dev_err(dev, "Failed to initialize host\n");
+          dev_err(pp->dev, "Failed to initialize host\n");
           printk (KERN_INFO "PCIE:BAIKAL -%s Error:Failed to initialize host\n",__func__);
           return ret;
 	}
 
-        baikal_pcie_link_retrain_bus (pp->root_bus);
+    //baikal_pcie_link_retrain_bus (pp->root_bus);
 	return 0;
 }
 /*  
@@ -675,8 +769,66 @@ static const struct dev_pm_ops baikal_pcie_pm_ops = {
 				      baikal_pcie_pm_resume_noirq)
 };
 
+
+
+
+static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
+{
+	unsigned int timeout = 10;
+	u32 reg;
+	// TODO add PHY configuration if needed
+	/* Deassert PHY reset */
+	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_RESET(rc->bus_nr));
+	reg &= ~BAIKAL_PCIE_PHY_RESET;
+	baikal_pcie_lcru_writel(rc->lcru, BAIKAL_LCRU_PCIE_RESET(rc->bus_nr), reg);
+	// TODO timeout?
+
+	/* Enable access to the PHY registers */
+	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr));
+	reg |= (BAIKAL_PCIE_PHY_MGMT_ENABLE | BAIKAL_PCIE_DBI2_MODE);
+	baikal_pcie_lcru_writel(rc->lcru, BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr), reg);
+
+	// TODO timeout?
+	/* Clear all software controlled resets of the controller */
+	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_RESET(rc->bus_nr));
+	reg &= 
+      ~(BAIKAL_PCIE_ADB_PWRDWN | BAIKAL_PCIE_HOT_RESET |
+        BAIKAL_PCIE_NONSTICKY_RST |	BAIKAL_PCIE_STICKY_RST |
+        BAIKAL_PCIE_PWR_RST | BAIKAL_PCIE_CORE_RST | BAIKAL_PCIE_PIPE_RESET);
+	baikal_pcie_lcru_writel(rc->lcru, BAIKAL_LCRU_PCIE_RESET(rc->bus_nr), reg);
+	// TODO timeout?
+
+	if (IS_ENABLED(CONFIG_PCI_MSI)) {
+		/* Set up the MSI translation mechanism: */
+
+		/* First, set MSI_AWUSER to 0 */
+		reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_MSI_TRANS_CTL0);
+		reg &= ~BAIKAL_PCIE_MSI_AWUSER_MASK;
+		reg |= (0 << BAIKAL_PCIE_MSI_AWUSER_SHIFT);
+		baikal_pcie_lcru_writel(rc->lcru, BAIKAL_LCRU_PCIE_MSI_TRANS_CTL0, reg);
+
+		// TODO timeout?
+
+		/* Second, enable MSI, the RC number for all RC is 0*/
+		reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_MSI_TRANS_CTL2);
+		reg |= BAIKAL_PCIE_MSI_TRANS_EN(rc->bus_nr);
+		//reg &= ~BAIKAL_PCIE_MSI_RCNUM_MASK(rc->bus_nr);
+        reg &= ~BE_PCIE_MSI_RCNUM_MASK(rc->bus_nr);
+		//reg |= BAIKAL_PCIE_MSI_RCNUM(rc->bus_nr);
+		baikal_pcie_lcru_writel(rc->lcru, BAIKAL_LCRU_PCIE_MSI_TRANS_CTL2, reg);
+
+	}
+
+    printk (KERN_INFO "%s: PCIE:BAIKAL - end of baikal_pcie_hw_init_m() - success..... \n",
+      __func__);
+	return 0;
+
+}
+
 static const struct of_device_id of_baikal_pcie_match[] = {
-	{ .compatible = "baikal,pcie-m" },
+	{ .compatible = "baikal,pcie-m"
+      .data = baikal_pcie_hw_init_m,
+    },
 	{}
 };
 MODULE_DEVICE_TABLE(of, of_baikal_pcie_match);
@@ -715,8 +867,7 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 	rc->pcie = pcie;
-	rc->lcru = syscon_regmap_lookup_by_phandle(dev->of_node,
-						   "baikal,pcie-lcru");
+	rc->lcru = syscon_regmap_lookup_by_phandle(dev->of_node,"baikal,pcie-lcru");
 	if (IS_ERR(rc->lcru)) {
 		dev_err(dev, "No LCRU phandle specified\n");
 		rc->lcru = NULL;
@@ -735,14 +886,18 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 		rc->lcru = NULL;
 		return -EINVAL;
 	}*/
+
     of_id =of_match_device (of_baikal_pcie_match, dev);
-	
 	if (!of_id || !of_id->data) {
 		printk(KERN_INFO "**%s: Baikal pcie device can't be handled by pcie-baikal driver\n",__func__);
 		return -EINVAL;
-	}
+	} else {
+        printk (KERN_INFO "%s PCIE:BAIKAL - success OF of_match_device() \n",__func__) ;
+    }
+
     hw_init_fn = of_id->data;
     pm_runtime_enable(dev);
+
     err = pm_runtime_get_sync(dev);
     if (err < 0) {
 		dev_err(dev, "pm_runtime_get_sync failed\n");
@@ -754,7 +909,7 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 
 	
 	reset_gpio = of_get_named_gpio_flags(dev->of_node, "reset-gpios", 0, &gpio_flags);
-	if (/*gpio_is_valid(reset_gpio)*/reset_gpio != -EPROBE_DEFER && gpio_is_valid(reset_gpio)) {
+	if (reset_gpio != -EPROBE_DEFER && gpio_is_valid(reset_gpio)) {
       unsigned long gpio_flags_be;
       snprintf(rc->reset_name,32,"pcie%d-reset",rc->bus_nr);
       if (gpio_flags & OF_GPIO_ACTIVE_LOW) {
@@ -775,16 +930,16 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 	} else {
 	  rc->reset_gpio = NULL;
 	}
+
     err = hw_init_fn(rc);
-    if (err){
+    if (err) {
       printk(KERN_INFO "**%s: Baikal PCIe link down\n",__func__);
       err = 0;
       goto err_pm_put;
     }
-    // PHY INITIALIZED
 
-    err = /*baikal_add_pcie_port */ 
-      baikal_pcie_add_pcie_port (rc,pdev);
+    // PHY INITIALIZED
+    err = baikal_pcie_add_pcie_port (rc,pdev);
     if (err < 0) {
       printk (KERN_INFO "**%s: PCIE:BAIKAL - cannot add pcie port\n",__func__);
       goto err_pm_put;
@@ -797,7 +952,6 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 		goto err_pm_disable;
 	}    */
 	platform_set_drvdata(pdev, rc);
-
 
     /*
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dbi");
