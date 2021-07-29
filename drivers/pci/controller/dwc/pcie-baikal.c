@@ -322,8 +322,32 @@ static int baikal_pcie_host_init(struct pcie_port *pp)
 	return 0;
 }
 
+static int baikal_pcie_msi_host_init(struct pcie_port *pp,struct msi_controller *chip) {
+	struct device *dev = pp->dev;
+	struct device_node *np = dev->of_node;
+	struct device_node *msi_node;
+	/*
+	 * The MSI domain is set by the generic of_msi_configure().  This
+	 * .msi_host_init() function keeps us from doing the default MSI
+	 * domain setup in dw_pcie_host_init() and also enforces the
+	 * requirement that "msi-parent" exists.
+	 */
+	msi_node = of_parse_phandle(np, "msi-parent", 0);
+	if (!msi_node) {
+		dev_err(dev, "failed to find msi-parent\n");
+        printk (KERN_INFO "%s PCIE:BAIKAL - failed to find msi-parent\n",__func__);
+		return -EINVAL;
+	}
+
+    printk (
+    KERN_INFO "%s PCIE:BAIKAL - end of baikal_pcie_msi_host_init() - success...\n",__func__);
+	return 0;
+}
+
 static const struct dw_pcie_host_ops baikal_pcie_host_ops = {
-	.host_init = baikal_pcie_host_init
+    .link_up = baikal_pcie_link_up,
+	.host_init = baikal_pcie_host_init,
+    .msi_host_init = baikal_pcie_msi_host_init,
 };
 
 static void baikal_pcie_link_print_status(struct baikal_pcie_rc *rc)
@@ -364,7 +388,6 @@ static bool baikal_pcie_link_wait_training_done(struct baikal_pcie_rc *rc)
 	}
 	return true;
 }
-
 
 static int baikal_pcie_get_msi(struct baikal_pcie_rc *rc,
 			struct device_node *msi_node, u64 *msi_addr)
@@ -630,6 +653,7 @@ static int __init baikal_pcie_add_pcie_port(
 		dev_err(pp->dev, "missing *dbi* reg space\n");
 		return -EINVAL;
 	}
+
 	//pp->irq 
     irq = platform_get_irq(pdev, 0);
 	if (irq < 0) {
@@ -638,7 +662,8 @@ static int __init baikal_pcie_add_pcie_port(
 		return irq;
 	}
     
-	ret = request_irq(irq, baikal_pcie_err_irq_handler, IRQF_SHARED, "baikal-pcie-error-irq", rc);
+	ret = request_irq(irq, baikal_pcie_err_irq_handler, IRQF_SHARED, 
+      "baikal-pcie-error-irq", rc);
 	if (ret < 0) {
 		dev_err(pp->dev, "failed to request error IRQ %d\n",irq);
 		printk (KERN_INFO "PCIE:BAIKAL -%s Error:for request IRQ\n",__func__);
@@ -651,7 +676,9 @@ static int __init baikal_pcie_add_pcie_port(
           printk(KERN_INFO "%s: PCIE:BAIKAL - failed to init MSI \n",__func__);
           return ret;
 		}
-	}  /*
+	}  
+
+    /*
 	ret = devm_request_irq (dev,pp->irq,baikal_pcie_err_irq_handler,
       IRQF_SHARED,"baikal-pcie-error-irq",pcie) ;
     if(ret) {
@@ -665,9 +692,9 @@ static int __init baikal_pcie_add_pcie_port(
             return  pp->msi_irq;
           }
     }   */
+
 	pp->root_bus_nr = -1;
 	pp->ops = &baikal_pcie_host_ops;
-	//baikal_pcie_fine_tune(pp);
 	ret = dw_pcie_host_init(pp);
 	if (ret) {
           dev_err(pp->dev, "Failed to initialize host\n");
@@ -678,6 +705,7 @@ static int __init baikal_pcie_add_pcie_port(
     //baikal_pcie_link_retrain_bus (pp->root_bus);
 	return 0;
 }
+
 /*  
 static int baikal_pcie_add_pcie_port(struct baikal_pcie_rc *rc,
 				     struct platform_device *pdev){
