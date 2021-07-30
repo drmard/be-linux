@@ -22,6 +22,7 @@
 #include <linux/resource.h>
 
 #include "pcie-designware.h"
+//#include <linux/mod_devicetable.h>
 
 struct baikal_pcie_rc {
     struct pcie_port  pp;
@@ -84,35 +85,39 @@ struct baikal_pcie_rc {
 #define PCIE_IATU_REGION_INBOUND		BIT(31)
 #define PCIE_IATU_REGION_OUTBOUND		0
 #define PCIE_IATU_REGION_CTRL_2_REG		0x908
-/*
+
 static int baikal_pcie_link_up(struct dw_pcie *pcie){
 	struct baikal_pcie_rc *rc = to_baikal_pcie_rc(pcie);
 	u32 reg;
-
-	reg = baikal_pcie_lcru_readl(rc->lcru,
-				     BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr));
+	reg = baikal_pcie_lcru_readl(rc->lcru,BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr));
 	if (!(reg & BAIKAL_PCIE_LTSSM_ENABLE)) {
 		return 0;
 	}
-	reg = baikal_pcie_lcru_readl(rc->lcru,
-				     BAIKAL_LCRU_PCIE_STATUS(rc->bus_nr));
+	reg = baikal_pcie_lcru_readl(rc->lcru,BAIKAL_LCRU_PCIE_STATUS(rc->bus_nr));
 
 	return (reg & BAIKAL_PCIE_SMLH_LINKUP) &&
 	       (reg & BAIKAL_PCIE_RDLH_LINKUP);
-}  */
+}
+/*
+static int baikal_pcie_link_up(struct pcie_port *pp)
+{
+    int ret;
+	struct baikal_pcie_rc *rc = to_baikal_pcie_rc (pp);
+	u32 reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_STATUS(rc->bus_nr));
+    ret = !!(reg & (BAIKAL_PCIE_RDLH_LINKUP | BAIKAL_PCIE_SMLH_LINKUP));
+    printk (KERN_INFO "%s PCIE:BAIKAL - end of baikal_pcie_link_up() - returned %d\n",
+    __func__,ret);
+	return ret; 
+} */
 
-static int baikal_pcie_link_up(struct dw_pcie *pcie) {
+static int _baikal_pcie_link_up(struct dw_pcie *pcie) {
   	struct baikal_pcie_rc *rc = to_baikal_pcie_rc(pcie);
-  	u32 reg=
-  	  //baikal_pcie_lcru_readl(rc->lcru,BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr));
-          baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_STATUS(rc->bus_nr));
-  
+  	u32 reg= baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_STATUS(rc->bus_nr));
   	if (!(reg & BAIKAL_PCIE_LTSSM_ENABLE)) {
   		return 0;
   	}
   	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_STATUS(rc->bus_nr));
-  	//return (reg & BAIKAL_PCIE_SMLH_LINKUP) && (reg & BAIKAL_PCIE_RDLH_LINKUP);
-        return !!(reg & (BAIKAL_PCIE_RDLH_LINKUP | BAIKAL_PCIE_SMLH_LINKUP));
+    return !!(reg & (BAIKAL_PCIE_RDLH_LINKUP | BAIKAL_PCIE_SMLH_LINKUP));
 }
 
 int dw_pcie_cfg_write(void __iomem *addr, int size, u32 val) {
@@ -138,7 +143,6 @@ static int baikal_pcie_host_init(struct pcie_port *pp)
 	int linkup;
 	unsigned idx;
 	u32 reg;
-
 	/* Disable access to PHY registers and DBI2 mode */
 	reg = baikal_pcie_lcru_readl(rc->lcru,
 				     BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr));
@@ -146,9 +150,7 @@ static int baikal_pcie_host_init(struct pcie_port *pp)
 	reg &= ~(BAIKAL_PCIE_PHY_MGMT_ENABLE |
 		 BAIKAL_PCIE_DBI2_MODE);
 
-	baikal_pcie_lcru_writel(rc->lcru,
-				BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr), reg);
-
+	baikal_pcie_lcru_writel(rc->lcru,BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr), reg);
 	rc->retrained = false;
 	linkup = baikal_pcie_link_up(pcie);
 
@@ -322,7 +324,8 @@ static int baikal_pcie_host_init(struct pcie_port *pp)
 	return 0;
 }
 
-static int baikal_pcie_msi_host_init(struct pcie_port *pp,struct msi_controller *chip) {
+static int baikal_pcie_msi_host_init(struct pcie_port *pp,
+    struct msi_controller *chip) {
 	struct device *dev = pp->dev;
 	struct device_node *np = dev->of_node;
 	struct device_node *msi_node;
@@ -339,15 +342,14 @@ static int baikal_pcie_msi_host_init(struct pcie_port *pp,struct msi_controller 
 		return -EINVAL;
 	}
 
-    printk (
-    KERN_INFO "%s PCIE:BAIKAL - end of baikal_pcie_msi_host_init() - success...\n",__func__);
+    //printk (KERN_INFO "%s PCIE:BAIKAL - end of baikal_pcie_msi_host_init() - success...\n",__func__);
 	return 0;
 }
 
 static const struct dw_pcie_host_ops baikal_pcie_host_ops = {
-    .link_up = baikal_pcie_link_up,
+    //.link_up = baikal_pcie_link_up,
 	.host_init = baikal_pcie_host_init,
-    .msi_host_init = baikal_pcie_msi_host_init,
+    //.msi_host_init = baikal_pcie_msi_host_init,
 };
 
 static void baikal_pcie_link_print_status(struct baikal_pcie_rc *rc)
@@ -638,7 +640,7 @@ static int __init baikal_pcie_add_pcie_port(
 	    struct baikal_pcie_rc *rc, struct platform_device *pdev) {
     int irq, ret;
     struct resource *res;
-    struct dw_pcie *pcie = rc->pcie;
+    //struct dw_pcie *pcie = rc->pcie;
     struct pcie_port *pp = &rc->pp;
     pp->dev = &pdev->dev;
     res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dbi");
@@ -797,13 +799,14 @@ static const struct dev_pm_ops baikal_pcie_pm_ops = {
 				      baikal_pcie_pm_resume_noirq)
 };
 
-
-
-
 static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
 {
-	unsigned int timeout = 10;
+	//unsigned int timeout = 10;
 	u32 reg;
+    if (rc->lcru == NULL){
+    printk (KERN_INFO "PCIE:BAIKAL - rc->lcru == NULL ; abort !!! \n");
+    return -ENODEV;
+    }
 	// TODO add PHY configuration if needed
 	/* Deassert PHY reset */
 	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_RESET(rc->bus_nr));
@@ -846,15 +849,13 @@ static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
 		baikal_pcie_lcru_writel(rc->lcru, BAIKAL_LCRU_PCIE_MSI_TRANS_CTL2, reg);
 
 	}
-
     printk (KERN_INFO "%s: PCIE:BAIKAL - end of baikal_pcie_hw_init_m() - success..... \n",
       __func__);
 	return 0;
-
 }
 
 static const struct of_device_id of_baikal_pcie_match[] = {
-	{ .compatible = "baikal,pcie-m"
+	{ .compatible = "baikal,pcie-m",
       .data = baikal_pcie_hw_init_m,
     },
 	{}
@@ -862,7 +863,7 @@ static const struct of_device_id of_baikal_pcie_match[] = {
 MODULE_DEVICE_TABLE(of, of_baikal_pcie_match);
 
 static const struct dw_pcie_ops baikal_pcie_ops = {
-	.link_up = baikal_pcie_link_up
+	.link_up = _baikal_pcie_link_up
 };
 
 static int baikal_pcie_probe(struct platform_device *pdev)
@@ -915,7 +916,7 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}*/
 
-    of_id =of_match_device (of_baikal_pcie_match, dev);
+    of_id = of_match_device (of_baikal_pcie_match, dev);
 	if (!of_id || !of_id->data) {
 		printk(KERN_INFO "**%s: Baikal pcie device can't be handled by pcie-baikal driver\n",__func__);
 		return -EINVAL;
@@ -934,8 +935,6 @@ static int baikal_pcie_probe(struct platform_device *pdev)
     baikal_pcie_cease_link(/*pcie*/rc);
     /* LINK DISABLED */
 
-
-	
 	reset_gpio = of_get_named_gpio_flags(dev->of_node, "reset-gpios", 0, &gpio_flags);
 	if (reset_gpio != -EPROBE_DEFER && gpio_is_valid(reset_gpio)) {
       unsigned long gpio_flags_be;
@@ -1011,6 +1010,8 @@ err_pm_disable:
 	return err;
 }
 
+module_param(be_debug, int, 0644);
+
 static struct platform_driver baikal_pcie_driver = {
 	.driver = {
 		.name = "baikal-pcie",
@@ -1020,8 +1021,8 @@ static struct platform_driver baikal_pcie_driver = {
 	},
 	.probe = baikal_pcie_probe
 };
-
-module_platform_driver(baikal_pcie_driver);
+//module_platform_driver(baikal_pcie_driver);
+builtin_platform_driver(baikal_pcie_driver);
 
 MODULE_DESCRIPTION("Baikal PCIe host controller driver");
 MODULE_LICENSE("GPL v2");

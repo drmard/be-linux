@@ -150,6 +150,7 @@ enum dw_pcie_device_mode {
 };
 
 struct dw_pcie_host_ops {
+    int (*link_up)(struct pcie_port *pp);
 	int (*rd_own_conf)(struct pcie_port *pp, int where, int size, u32 *val);
 	int (*wr_own_conf)(struct pcie_port *pp, int where, int size, u32 val);
 	int (*rd_other_conf)(struct pcie_port *pp, struct pci_bus *bus,
@@ -163,7 +164,6 @@ struct dw_pcie_host_ops {
 };
 
 struct pcie_port {
-	
     struct device		*dev;
 	u8			         root_bus_nr;
     void __iomem         *dbi_base;

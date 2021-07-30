@@ -115,6 +115,10 @@ static const struct dw_pcie_ep_ops pcie_ep_ops = {
 static int dw_plat_add_pcie_port(struct dw_plat_pcie *dw_plat_pcie,
 				 struct platform_device *pdev)
 {
+
+
+    printk(KERN_INFO "PCIE:BAIKAL  start - dw_plat_add_pcie_port() \n");
+
 	struct dw_pcie *pci = dw_plat_pcie->pci;
 	struct pcie_port *pp = &pci->pp;
 	struct device *dev = &pdev->dev;
@@ -137,6 +141,10 @@ static int dw_plat_add_pcie_port(struct dw_plat_pcie *dw_plat_pcie,
 		dev_err(dev, "Failed to initialize host\n");
 		return ret;
 	}
+
+    printk(KERN_INFO "PCIE:BAIKAL  end - dw_plat_add_pcie_port() SUCCESS\n");
+
+
 
 	return 0;
 }
@@ -174,7 +182,9 @@ static int dw_plat_add_pcie_ep(struct dw_plat_pcie *dw_plat_pcie,
 }
 
 static int dw_plat_pcie_probe(struct platform_device *pdev)
-{
+{   printk(KERN_INFO "PCIE:BAIKAL  start - dw_plat_pcie_probe() \n");
+
+
 	struct device *dev = &pdev->dev;
 	struct dw_plat_pcie *dw_plat_pcie;
 	struct dw_pcie *pci;
@@ -235,9 +245,11 @@ static int dw_plat_pcie_probe(struct platform_device *pdev)
 	default:
 		dev_err(dev, "INVALID device type %d\n", dw_plat_pcie->mode);
 	}
-
+    
+    printk(KERN_INFO "PCIE:BAIKAL  end - dw_plat_pcie_probe() SUCCESS\n");
 	return 0;
 }
+
 
 static const struct dw_plat_pcie_of_data dw_plat_pcie_rc_of_data = {
 	.mode = DW_PCIE_RC_TYPE,
