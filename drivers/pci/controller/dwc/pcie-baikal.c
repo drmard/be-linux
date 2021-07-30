@@ -305,12 +305,9 @@ static int baikal_pcie_host_init(struct pcie_port *pp)
 	return 0;
 }
 
-static int baikal_pcie_msi_host_init(struct pcie_port *pp ,
-        struct msi_controller *chip)
+static int baikal_pcie_msi_host_init(struct pcie_port *pp //, struct msi_controller *chip)
+)
 {
-
-
-
 
 	struct device *dev = pp->dev;
 	struct device_node *np = dev->of_node;
@@ -322,7 +319,7 @@ static int baikal_pcie_msi_host_init(struct pcie_port *pp ,
 	 * requirement that "msi-parent" exists.
 	 */
 
-printk (KERN_INFO "PCIE:BAIKAL - start 0f baikal_pcie_msi_host_init()\n");
+    printk (KERN_INFO "PCIE:BAIKAL - start 0f baikal_pcie_msi_host_init()\n");
 
 
 	msi_node = of_parse_phandle(np, "msi-parent", 0);
@@ -332,14 +329,14 @@ printk (KERN_INFO "PCIE:BAIKAL - start 0f baikal_pcie_msi_host_init()\n");
 		return -EINVAL;
 	}
 
-    //printk (KERN_INFO "%s PCIE:BAIKAL - end of baikal_pcie_msi_host_init() - success...\n",__func__);
+        printk (KERN_INFO "%s PCIE:BAIKAL - end of baikal_pcie_msi_host_init() - success...\n",__func__);
 	return 0;
 }
 
 static const struct dw_pcie_host_ops baikal_pcie_host_ops = {
     //.link_up = baikal_pcie_link_up,
 	.host_init = baikal_pcie_host_init,
-    .msi_host_init = baikal_pcie_msi_host_init,
+        .msi_host_init = baikal_pcie_msi_host_init,
 };
 
 static void baikal_pcie_link_print_status(struct baikal_pcie_rc *rc)
