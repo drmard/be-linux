@@ -117,12 +117,16 @@ static int dw_plat_add_pcie_port(struct dw_plat_pcie *dw_plat_pcie,
 {
 
 
-    printk(KERN_INFO "PCIE:BAIKAL  start - dw_plat_add_pcie_port() \n");
+        
 
 	struct dw_pcie *pci = dw_plat_pcie->pci;
 	struct pcie_port *pp = &pci->pp;
 	struct device *dev = &pdev->dev;
 	int ret;
+        printk(KERN_INFO "PCIE:BAIKAL  start - dw_plat_add_pcie_port() \n");
+
+
+
 
 	pp->irq = platform_get_irq(pdev, 1);
 	if (pp->irq < 0)
@@ -182,7 +186,7 @@ static int dw_plat_add_pcie_ep(struct dw_plat_pcie *dw_plat_pcie,
 }
 
 static int dw_plat_pcie_probe(struct platform_device *pdev)
-{   printk(KERN_INFO "PCIE:BAIKAL  start - dw_plat_pcie_probe() \n");
+{   
 
 
 	struct device *dev = &pdev->dev;
@@ -193,6 +197,10 @@ static int dw_plat_pcie_probe(struct platform_device *pdev)
 	const struct of_device_id *match;
 	const struct dw_plat_pcie_of_data *data;
 	enum dw_pcie_device_mode mode;
+
+        printk(KERN_INFO "PCIE:BAIKAL  start - dw_plat_pcie_probe() \n");
+
+
 
 	match = of_match_device(dw_plat_pcie_of_match, dev);
 	if (!match)
