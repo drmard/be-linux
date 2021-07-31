@@ -22,9 +22,10 @@
 #include "pcie-designware.h"
 
 struct dw_plat_pcie {
-	struct dw_pcie			*pci;
-	struct regmap			*regmap;
-	enum dw_pcie_device_mode	mode;
+	struct pcie_port	pp;	/* pp.dbi_base is DT 0th resource */
+	struct dw_pcie			    *pci;
+	struct regmap		     	*regmap;
+	enum dw_pcie_device_mode	 mode;
 };
 
 struct dw_plat_pcie_of_data {
