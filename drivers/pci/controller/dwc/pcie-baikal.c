@@ -381,10 +381,12 @@ static bool baikal_pcie_link_wait_training_done(struct baikal_pcie_rc *rc)
 static int baikal_pcie_get_msi(struct baikal_pcie_rc *rc,
 			struct device_node *msi_node, u64 *msi_addr)
 {
+
 	struct pcie_port *pp = &rc->pp;
 	struct device *dev = pp->dev;
 	int ret;
 	struct resource res;
+printk(KERN_INFO "****%s: start\n",__func__);
 	/*
 	 * Check if 'msi-parent' points to ARM GICv3 ITS, which is the only
 	 * supported MSI controller.
@@ -393,14 +395,22 @@ static int baikal_pcie_get_msi(struct baikal_pcie_rc *rc,
 		dev_err(dev, "unable to find compatible MSI controller\n");
         printk(KERN_INFO "%s: PCIE:BAIKAL - error of baikal_pcie_get_msi() \n",__func__);
 		return -ENODEV;
-	}
+	} else {
+      printk(KERN_INFO"**%s: we found that msi_node is compatible with \'gic-v3-its\'\n",
+      __func__);
+    }
 	/* derive GITS_TRANSLATER address from GICv3 */
 	ret = of_address_to_resource(msi_node, 0, &res);
 	if (ret < 0) {
 		dev_err(dev, "unable to obtain MSI controller resources\n");
 		return ret;
-	}
+	} else {
+      printk(KERN_INFO"**%s: MSI controller resources GET - success \n",__func__);
+    }
+
 	*msi_addr = res.start + GITS_TRANSLATER;
+
+printk(KERN_INFO "****%s: returned 0\n",__func__);
 	return 0;
 }
 
@@ -411,6 +421,7 @@ static int baikal_pcie_msi_steer(struct baikal_pcie_rc *rc,struct device_node *m
 	struct device *dev = pp->dev;
 	int ret;
 	u64 msi_addr;
+printk(KERN_INFO "****%s: start\n",__func__);
 	ret = baikal_pcie_get_msi(rc, msi_node, &msi_addr);
 	if (ret < 0) {
 		dev_err(dev, "MSI steering failed\n");
@@ -422,6 +433,8 @@ static int baikal_pcie_msi_steer(struct baikal_pcie_rc *rc,struct device_node *m
 			lower_32_bits(msi_addr));
 	dw_pcie_cfg_write(pp->dbi_base + PCIE_MSI_ADDR_HI, 4,
 			upper_32_bits(msi_addr));
+
+printk(KERN_INFO "****%s: end - returned 0\n",__func__);
 	return 0;
 }
 
@@ -565,7 +578,7 @@ static int baikal_pcie_msi_enable(struct baikal_pcie_rc *rc)
 	struct device *dev = pp->dev;
 	struct device_node *msi_node;
 	int ret;
-
+printk(KERN_INFO "****%s: start\n",__func__);
 	/*
 	 * The "msi-parent" phandle needs to exist
 	 * for us to obtain the MSI node.
@@ -586,6 +599,7 @@ static int baikal_pcie_msi_enable(struct baikal_pcie_rc *rc)
 
 out_put_node:
 	of_node_put(msi_node);
+printk(KERN_INFO "****%s: end - returned %d\n",__func__,ret);
 	return ret;
 }
 
@@ -651,20 +665,21 @@ static int __init baikal_pcie_add_pcie_port(struct baikal_pcie_rc *rc, struct pl
 		return irq;
 	}
     
-	ret = request_irq(irq, baikal_pcie_err_irq_handler, IRQF_SHARED, 
-      "baikal-pcie-error-irq", rc);
+	ret = request_irq(irq, baikal_pcie_err_irq_handler, IRQF_SHARED, "baikal-pcie-error-irq", rc);
 	if (ret < 0) {
 		dev_err(pp->dev, "failed to request error IRQ %d\n",irq);
-		printk (KERN_INFO "PCIE:BAIKAL -%s Error:for request IRQ\n",__func__);
+		printk (KERN_INFO "%s:::   error for request error IRQ\n",__func__);
 		return ret;
 	}
 	if (IS_ENABLED(CONFIG_PCI_MSI)) {
 		ret = baikal_pcie_msi_enable(rc);
 		if (ret) {
 		  dev_err(pp->dev, "failed to initialize MSI\n");
-          printk(KERN_INFO "%s: PCIE:BAIKAL - failed to init MSI \n",__func__);
+          printk(KERN_INFO "%s: ------ failed to init MSI \n",__func__);
           return ret;
-		}
+		} else {
+          printk (KERN_INFO "%s:  PCIE:BAIKAL init MSI - OK !!!\n",__func__);
+        }
 	}  
 
     /*
@@ -681,17 +696,17 @@ static int __init baikal_pcie_add_pcie_port(struct baikal_pcie_rc *rc, struct pl
             return  pp->msi_irq;
           }
     }   */
-
 	pp->root_bus_nr = -1;
 	pp->ops = &baikal_pcie_host_ops;
 	ret = dw_pcie_host_init(pp);
 	if (ret) {
           dev_err(pp->dev, "Failed to initialize host\n");
-          printk (KERN_INFO "PCIE:BAIKAL -%s Error:Failed to initialize host\n",__func__);
+          printk (KERN_INFO "**%s: error: failed to initialize host\n",__func__);
           return ret;
 	}
 
-    //baikal_pcie_link_retrain_bus (pp->root_bus);
+    baikal_pcie_link_retrain_bus (pp->root_bus);
+    printk (KERN_INFO "**%s:      END - returned 0\n",__func__);
 	return 0;
 }
 
