@@ -200,6 +200,11 @@ static int _dw_plat_add_pcie_port(struct pcie_port *pp,
 {
 	struct device *dev = pp->dev;
 	int ret;
+
+
+printk(KERN_INFO  "PCIE:BE FUNC:_dw_plat_add_pcie_port() - start \n");
+
+
 	pp->irq = platform_get_irq(pdev, 1);
 	if (pp->irq < 0)
 		return pp->irq;
@@ -223,6 +228,9 @@ static int _dw_plat_add_pcie_port(struct pcie_port *pp,
 		dev_err(dev, "failed to initialize host\n");
 		return ret;
 	}
+
+
+printk(KERN_INFO  "PCIE:BE FUNC:_dw_plat_add_pcie_port() - end    returned : 0 \n");
 	return 0;
 }
 
@@ -237,12 +245,18 @@ static int dw_plat_pcie_probe(struct platform_device *pdev) {
         else
         printk(KERN_INFO "PCIE:BAIKAL  dw_plat_pcie_probe() :dev is NOT NULL\n");
 	dw_plat_pcie = devm_kzalloc(dev, sizeof(*dw_plat_pcie), GFP_KERNEL);
-	if (!dw_plat_pcie)   return -ENOMEM;
+	if (!dw_plat_pcie)  
+      return -ENOMEM;
+    else
+      printk(KERN_INFO "PCIE:BAIKAL  dw_plat_pcie_probe() :dw_plat_pcie is NOT NULL    continue\n");
+
+
 	pp = &dw_plat_pcie->pp;
     pp->dev = dev;
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	pp->dbi_base = devm_ioremap_resource(dev, res);
-	if (IS_ERR(pp->dbi_base))   return PTR_ERR(pp->dbi_base);
+	if (IS_ERR(pp->dbi_base))  
+      return PTR_ERR(pp->dbi_base);
 
 	ret = _dw_plat_add_pcie_port(pp, pdev);
 	if (ret < 0) {
@@ -346,12 +360,13 @@ static const struct dw_plat_pcie_of_data dw_plat_pcie_ep_of_data = {
 static const struct of_device_id dw_plat_pcie_of_match[] = {
 	{
 		.compatible = "snps,dw-pcie",
-		.data = &dw_plat_pcie_rc_of_data,
+		//.data = &dw_plat_pcie_rc_of_data,
 	},
+/*
 	{
 		.compatible = "snps,dw-pcie-ep",
 		.data = &dw_plat_pcie_ep_of_data,
-	},
+	},*/
 	{},
 };
 
@@ -359,7 +374,7 @@ static struct platform_driver dw_plat_pcie_driver = {
 	.driver = {
 		.name	= "dw-pcie",
 		.of_match_table = dw_plat_pcie_of_match,
-		.suppress_bind_attrs = true,
+		//.suppress_bind_attrs = true,
 	},
 	.probe = dw_plat_pcie_probe,
 };
