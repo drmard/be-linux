@@ -153,7 +153,7 @@ static int dw_plat_add_pcie_port(struct dw_plat_pcie *dw_plat_pcie,
 
 	return 0;
 }
-
+/*
 static int dw_plat_add_pcie_ep(struct dw_plat_pcie *dw_plat_pcie,
 			       struct platform_device *pdev)
 {
@@ -184,7 +184,7 @@ static int dw_plat_add_pcie_ep(struct dw_plat_pcie *dw_plat_pcie,
 		return ret;
 	}
 	return 0;
-}
+}*/
 
 // From 4.3
 // without these 3 functions ALL works fine

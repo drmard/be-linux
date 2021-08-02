@@ -857,8 +857,8 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 {
 
     struct device *dev = &pdev->dev;
-    if (dev == 0)
-    printk (KERN_INFO "PCIE:BAIKAL dev == NULL \n");
+    
+    struct device_node *np = dev->of_node;
 
     //struct resource *res ;
     struct baikal_pcie_rc *rc;
@@ -869,8 +869,7 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 	u32 idx[2];
 	enum of_gpio_flags gpio_flags;
 	int reset_gpio;
-    
-    
+    if (dev == 0)  printk (KERN_INFO "PCIE:BAIKAL dev == NULL \n");
     if (dev == 0 || np == 0)  {
         printk (KERN_INFO "%s:  dev == NULL or np == NULL \n",__func__);
         return -EINVAL;
