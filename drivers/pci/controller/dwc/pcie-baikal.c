@@ -808,7 +808,7 @@ static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
       printk (KERN_INFO "PCIE:BAIKAL - rc->lcru == NULL ; abort !!! \n");
       return -ENODEV;
     } else {
-      printk (KERN_INFO "%s:   PCIE:BAIKAL - rc->lcru is not NULL ; abort !!! \n");
+      printk (KERN_INFO "%s: PCIE:BAIKAL - rc->lcru is not NULL; abort !\n",__func__);
 
     }
 	// TODO add PHY configuration if needed
@@ -874,37 +874,30 @@ static const struct dw_pcie_ops baikal_pcie_ops = {
 	.link_up = baikal_pcie_link_up,
 };
 
-static int baikal_pcie_probe(struct platform_device *pdev)
+static int __init baikal_pcie_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-    if (dev == 0)  {
-        printk (KERN_INFO "%s:    PCIE:BAIKAL dev == NULL \n");
+	struct resource *res;
+	struct baikal_pcie_rc *rc;
+	struct dw_pcie *pcie;
+	struct device_node *np = dev->of_node;
+	const struct of_device_id *of_id;
+	int err,ret;
+        //int (*hw_init_fn)(struct baikal_pcie_rc *);
+	u32 idx[2];
+	enum of_gpio_flags gpio_flags;
+	int reset_gpio;
+
+
+
+    if (dev == 0 || np == 0)  {
+        printk (KERN_INFO "%s:  dev == NULL or np == NULL \n",__func__);
         return -EINVAL;
     } else  {
         printk (KERN_INFO "%s::   PCIE:BAIKAL dev is not NULL \n",__func__);
     }
-
-    // struct resource *res ;
-	struct baikal_pcie_rc *rc;
-	struct dw_pcie *pcie;
-
-
-    struct device_node *np = dev->of_node;
-    const struct of_device_id *of_id;
-	int err;
-    int (*hw_init_fn)(struct baikal_pcie_rc *);
-	u32 idx[2];
-	enum of_gpio_flags gpio_flags;
-	int reset_gpio;
 	dev_dbg(dev, "pci be_debug %x\n", be_debug);
 
-
-	if (be_debug) {
-		if(be_debug == 1) {
-			while(be_debug) {}
-		} else if(be_debug == 2)
-			return -EBUSY;
-	}
 
 	pcie = devm_kzalloc(dev, sizeof(*pcie), GFP_KERNEL);
 	if (!pcie) {
@@ -912,12 +905,19 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 	} else {
       printk (KERN_INFO "%s:  pcie: is (dw_pcie *)  is not NULL\n",__func__);
     }
-	rc = devm_kzalloc(dev, sizeof(*rc), GFP_KERNEL);
-	if (!rc) {
-		return -ENOMEM;
-	}
+
 	pcie->dev = dev;
 	pcie->ops = &baikal_pcie_ops;
+
+
+
+
+
+	rc = devm_kzalloc(dev, sizeof(*rc), GFP_KERNEL);
+	if (!rc) {
+        printk (KERN_INFO "%s   rc is NULL\n",__func__);
+		return -ENOMEM;
+	}
 	rc->pcie = pcie;
 	rc->lcru = syscon_regmap_lookup_by_phandle(np,"baikal,pcie-lcru");
 	if (IS_ERR(rc->lcru)) {
@@ -927,6 +927,8 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 	} else {
       printk  (KERN_INFO "%s:    get OF rc->lcru - OK!", __func__);
     }
+
+
 	if (of_property_read_u32_array(/*dev->of_node*/np, "baikal,pcie-lcru", idx, 2)) {
 		dev_err(dev, "failed to read LCRU\n");
 		rc->lcru = NULL;
@@ -937,7 +939,7 @@ static int baikal_pcie_probe(struct platform_device *pdev)
     rc->bus_nr = idx[1];
 
 
-    /*
+    
   	reset_gpio = of_get_named_gpio_flags(dev->of_node, "reset-gpios", 0, &gpio_flags);
   	if (gpio_is_valid(reset_gpio)) {
   		rc->reset_gpio = gpio_to_desc(reset_gpio);
@@ -948,8 +950,9 @@ static int baikal_pcie_probe(struct platform_device *pdev)
   		rc->reset_gpio = NULL;
         printk (KERN_INFO "%s;  !!! rc->reset_gpio == NULL\n",__func__);
   	}
-    */
+    
 
+    /*
 	reset_gpio = of_get_named_gpio_flags(dev->of_node, "reset-gpios", 0, &gpio_flags);
 	if (reset_gpio != -EPROBE_DEFER && gpio_is_valid(reset_gpio)) {
       unsigned long gpio_flags_be;
@@ -974,6 +977,8 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 	  rc->reset_gpio = NULL;
       printk (KERN_INFO "%s;  !!! rc->reset_gpio == NULL\n",__func__);
 	}
+    */
+
 
     /*
     of_id = of_match_device (of_baikal_pcie_match, dev);
@@ -985,13 +990,27 @@ static int baikal_pcie_probe(struct platform_device *pdev)
     }  */
     //hw_init_fn = of_id->data;
     //pm_runtime_enable(dev);
-  	pm_runtime_enable(dev);
+
+
+  	//pm_runtime_enable(dev);
+
+
+
+
+
+
+    /*
+
   	ret = pm_runtime_get_sync(dev);
   	if (ret < 0) {
   		dev_err(dev, "pm_runtime_get_sync failed\n");
   		goto err_pm_disable;
   	}
-    
+    */
+
+
+
+
     //baikal_pcie_cease_link(rc);
     /* LINK DISABLED */
 
