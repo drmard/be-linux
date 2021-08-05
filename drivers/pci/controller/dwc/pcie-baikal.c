@@ -1002,7 +1002,7 @@ struct device_node {
 	} else {
 	  rc->reset_gpio = NULL;
 	}
-
+    /*
     err = 0;
     if (hw_init_fn != NULL) {
       err = hw_init_fn(rc);
@@ -1011,7 +1011,7 @@ struct device_node {
         err = 0;
         goto err_pm_put;
       }
-    }
+    } */
 
     // PHY INITIALIZED
     err = baikal_pcie_add_pcie_port (rc,pdev);
