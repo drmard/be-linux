@@ -783,7 +783,7 @@ static const struct dev_pm_ops baikal_pcie_pm_ops = {
 	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(baikal_pcie_pm_suspend_noirq,
 				      baikal_pcie_pm_resume_noirq)
 };
-/*
+
 static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
 {
 	//unsigned int timeout = 10;
@@ -793,19 +793,19 @@ static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
     return -ENODEV;
     }
 	// TODO add PHY configuration if needed
-	
+	/* Deassert PHY reset */
 	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_RESET(rc->bus_nr));
 	reg &= ~BAIKAL_PCIE_PHY_RESET;
 	baikal_pcie_lcru_writel(rc->lcru, BAIKAL_LCRU_PCIE_RESET(rc->bus_nr), reg);
 	// TODO timeout?
 
-	
+	/* Enable access to the PHY registers */
 	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr));
 	reg |= (BAIKAL_PCIE_PHY_MGMT_ENABLE | BAIKAL_PCIE_DBI2_MODE);
 	baikal_pcie_lcru_writel(rc->lcru, BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr), reg);
 
 	// TODO timeout?
-	
+	/* Clear all software controlled resets of the controller */
 	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_RESET(rc->bus_nr));
 	reg &= 
       ~(BAIKAL_PCIE_ADB_PWRDWN | BAIKAL_PCIE_HOT_RESET |
@@ -815,9 +815,9 @@ static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
 	// TODO timeout?
 
 	if (IS_ENABLED(CONFIG_PCI_MSI)) {
-	
+		/* Set up the MSI translation mechanism: */
 
-	
+		/* First, set MSI_AWUSER to 0 */
 		reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_MSI_TRANS_CTL0);
 		reg &= ~BAIKAL_PCIE_MSI_AWUSER_MASK;
 		reg |= (0 << BAIKAL_PCIE_MSI_AWUSER_SHIFT);
@@ -825,7 +825,7 @@ static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
 
 		// TODO timeout?
 
-		
+		/* Second, enable MSI, the RC number for all RC is 0*/
 		reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_MSI_TRANS_CTL2);
 		reg |= BAIKAL_PCIE_MSI_TRANS_EN(rc->bus_nr);
 		//reg &= ~BAIKAL_PCIE_MSI_RCNUM_MASK(rc->bus_nr);
@@ -838,7 +838,7 @@ static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
       __func__);
 	return 0;
 }
-*/
+
 static const struct of_device_id of_baikal_pcie_match[] = {
 	{ .compatible = "baikal,pcie-m",
           .type = "pci",
@@ -877,62 +877,95 @@ static int baikal_pcie_probe(struct platform_device *pdev)
     }
     dev_dbg(dev, "pci be_debug %x\n", be_debug);
 
-    
-	if (!of_match_device(of_baikal_pcie_match, dev)) {
-	dev_err(dev, "device can't be handled by pcie-baikal\n");
-        printk(
-        KERN_INFO "%s:  device cant be handled by pcie-baikal\n",
-        __func__);
-	return -EINVAL;
-	}
+    if (np->name[0])
+    printk (KERN_INFO"%s  device_node#name : %s\n",__func__,np->name);
+    else
+    printk (KERN_INFO"%s  device_node#name NULL\n",__func__);
+    if (np->full_name[0])
+    printk (KERN_INFO"%s  device_node#full_name : %s\n",__func__,np->full_name);
+    else
+    printk (KERN_INFO"%s  device_node#full_name NULL\n",__func__);
 
-	pcie = devm_kzalloc(dev, sizeof(*pcie), GFP_KERNEL);
-	if (!pcie) {
-		return -ENOMEM;
-	}
-	pcie->dev = dev;
-	pcie->ops = &baikal_pcie_ops;
+
 	rc = devm_kzalloc(dev, sizeof(*rc), GFP_KERNEL);
-	if (!rc) {
+	if (!rc){
 		return -ENOMEM;
-	}
+    }
 
-	rc->pcie = pcie;
-	rc->lcru = syscon_regmap_lookup_by_phandle(
-np,"baikal,pcie-lcru");
+	rc->lcru = syscon_regmap_lookup_by_phandle(dev->of_node, "baikal,pcie-lcru");
 	if (IS_ERR(rc->lcru)) {
 		dev_err(dev, "No LCRU phandle specified\n");
+        printk (KERN_INFO "%s  lcru phandle is invalid\n",__func__) ;
 		rc->lcru = NULL;
 		return -EINVAL;
 	}
-
 	if (of_property_read_u32_array(dev->of_node, "baikal,pcie-lcru", idx, 2)) {
-		dev_err(dev, "failed to read LCRU\n");
 		rc->lcru = NULL;
 		return -EINVAL;
 	}
-    rc->bus_nr = idx[1];
     
 	if (idx[1] > 2) {
 		dev_err(dev, "incorrect pcie-lcru index\n");
 		rc->lcru = NULL;
-        printk(KERN_INFO "%s  incorrect pcie-lcru \n",__func__);
+        printk(KERN_INFO "%s  incorrect pcie-lcru\n",__func__);
 		return -EINVAL;
 	}
+	rc->bus_nr = idx[1];
+    printk  (KERN_INFO"%s:  bus_nr - %d\n",__func__,rc->bus_nr);
 
-    if (dev == 0 || dev->of_node == 0) {
-      printk (KERN_INFO "PCIE:BAIKAL dev of pcie:baikal is not Valid \n");
-      return -22 ;
-    }
-    
+/*
+struct device_node {
+	const char *name;
+	phandle phandle;
+	const char *full_name;
+	struct fwnode_handle fwnode;
+
+	struct	property *properties;
+	struct	property *deadprops;	// removed properties
+	struct	device_node *parent;
+	struct	device_node *child;
+	struct	device_node *sibling;
+#if defined(CONFIG_OF_KOBJ)
+	struct	kobject kobj;
+#endif
+	unsigned long _flags;
+	void	*data;
+#if defined(CONFIG_SPARC)
+	unsigned int unique_id;
+	struct of_irq_controller *irq_trans;
+#endif
+};
+*/
+    /*
+	if (!of_match_device(of_baikal_pcie_match, dev)) {
+	    dev_err(dev, "device can't be handled by pcie-baikal\n");
+        printk(
+            KERN_INFO "%s:  device cant be handled by pcie-baikal\n", __func__);
+	    return -EINVAL;
+	}  */
+
     of_id = of_match_device (of_baikal_pcie_match, dev);
 	if (!of_id || !of_id->data) {
-		printk(KERN_INFO "**%s: Baikal pcie device can't be handled by pcie-baikal driver\n",__func__);
+		printk(KERN_INFO "%s: pcie device can't be handled by pcie-baikal driver\n",__func__);
 		return -EINVAL;
 	} else {
-        printk (KERN_INFO "%s PCIE:BAIKAL - success OF of_match_device() \n",__func__) ;
+        printk (KERN_INFO "%s PCIE:BAIKAL - success OF of_match_device()\n",__func__) ;
     }
 
+
+
+
+    
+
+        pcie = devm_kzalloc(dev, sizeof(*pcie), GFP_KERNEL);
+     	if (!pcie) {
+          printk (KERN_INFO"%s  pcie is NULL\n",__fun__);
+		  return -ENOMEM;
+	    }
+	    pcie->dev = dev;
+	    pcie->ops = &baikal_pcie_ops;
+
+	rc->pcie = pcie;
     hw_init_fn = of_id->data;
     pm_runtime_enable(dev);
 
@@ -1020,6 +1053,8 @@ err_pm_disable:
 }
 
 module_param(be_debug, int, 0644);
+
+
 
 static struct platform_driver baikal_pcie_driver = {
 	.driver = {
