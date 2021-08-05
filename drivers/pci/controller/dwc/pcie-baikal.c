@@ -793,19 +793,19 @@ static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
     return -ENODEV;
     }
 	// TODO add PHY configuration if needed
-	/* Deassert PHY reset */
+	
 	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_RESET(rc->bus_nr));
 	reg &= ~BAIKAL_PCIE_PHY_RESET;
 	baikal_pcie_lcru_writel(rc->lcru, BAIKAL_LCRU_PCIE_RESET(rc->bus_nr), reg);
 	// TODO timeout?
 
-	/* Enable access to the PHY registers */
+	
 	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr));
 	reg |= (BAIKAL_PCIE_PHY_MGMT_ENABLE | BAIKAL_PCIE_DBI2_MODE);
 	baikal_pcie_lcru_writel(rc->lcru, BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr), reg);
 
 	// TODO timeout?
-	/* Clear all software controlled resets of the controller */
+	
 	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_RESET(rc->bus_nr));
 	reg &= 
       ~(BAIKAL_PCIE_ADB_PWRDWN | BAIKAL_PCIE_HOT_RESET |
@@ -815,9 +815,9 @@ static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
 	// TODO timeout?
 
 	if (IS_ENABLED(CONFIG_PCI_MSI)) {
-		/* Set up the MSI translation mechanism: */
+	
 
-		/* First, set MSI_AWUSER to 0 */
+	
 		reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_MSI_TRANS_CTL0);
 		reg &= ~BAIKAL_PCIE_MSI_AWUSER_MASK;
 		reg |= (0 << BAIKAL_PCIE_MSI_AWUSER_SHIFT);
@@ -825,7 +825,7 @@ static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
 
 		// TODO timeout?
 
-		/* Second, enable MSI, the RC number for all RC is 0*/
+	
 		reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_MSI_TRANS_CTL2);
 		reg |= BAIKAL_PCIE_MSI_TRANS_EN(rc->bus_nr);
 		//reg &= ~BAIKAL_PCIE_MSI_RCNUM_MASK(rc->bus_nr);
@@ -840,12 +840,15 @@ static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
 }
 
 static const struct of_device_id of_baikal_pcie_match[] = {
-	{ .compatible = "baikal,pcie-m",
-          .type = "pci",
-          //.data = baikal_pcie_hw_init_m,
-        },
-	{}
+	{ 
+	  .compatible = "baikal,pcie-m",
+      .type = "pci",
+      .name = "pcie",
+      .data = baikal_pcie_hw_init_m,
+    },
+	{},
 };
+
 MODULE_DEVICE_TABLE(of, of_baikal_pcie_match);
 
 static const struct dw_pcie_ops baikal_pcie_ops = {
@@ -958,8 +961,8 @@ struct device_node {
     
 
         pcie = devm_kzalloc(dev, sizeof(*pcie), GFP_KERNEL);
-     	if (!pcie) {
-          printk (KERN_INFO"%s  pcie is NULL\n",__fun__);
+        if (!pcie) {
+            printk (KERN_INFO"%s  pcie is NULL\n",__func__);
 		  return -ENOMEM;
 	    }
 	    pcie->dev = dev;
@@ -1000,11 +1003,14 @@ struct device_node {
 	  rc->reset_gpio = NULL;
 	}
 
-    err = hw_init_fn(rc);
-    if (err) {
-      printk(KERN_INFO "**%s: Baikal PCIe link down\n",__func__);
-      err = 0;
-      goto err_pm_put;
+    err = 0;
+    if (hw_init_fn != NULL) {
+      err = hw_init_fn(rc);
+      if (err) {
+        printk(KERN_INFO "**%s: Baikal PCIe link down\n",__func__);
+        err = 0;
+        goto err_pm_put;
+      }
     }
 
     // PHY INITIALIZED

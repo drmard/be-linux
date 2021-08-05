@@ -509,7 +509,7 @@ EXPORT_SYMBOL(of_cpu_node_to_id);
  */
 static int __of_device_is_compatible(const struct device_node *device,
 				     const char *compat, const char *type, const char *name)
-{
+{   printk (KERN_INFO "%s  start\n",__func__) ;
 	struct property *prop;
 	const char *cp;
 	int index = 0, score = 0;
@@ -542,6 +542,8 @@ static int __of_device_is_compatible(const struct device_node *device,
 		score++;
 	}
 
+
+    printk (KERN_INFO "%s  end\n",__func__) ;
 	return score;
 }
 
@@ -1107,7 +1109,7 @@ EXPORT_SYMBOL(of_find_node_with_property);
 static
 const struct of_device_id *__of_match_node(const struct of_device_id *matches,
 					   const struct device_node *node)
-{
+{printk  (KERN_INFO "%s  start \n",__func__);
 	const struct of_device_id *best_match = NULL;
 	int score, best_score = 0;
 
@@ -1117,6 +1119,7 @@ const struct of_device_id *__of_match_node(const struct of_device_id *matches,
 	for (; matches->name[0] || matches->type[0] || matches->compatible[0]; matches++) {
 		score = __of_device_is_compatible(node, matches->compatible,
 						  matches->type, matches->name);
+        printk (KERN_INFO "%s  score == %d\n",__func__,score) ;
 		if (score > best_score) {
 			best_match = matches;
 			best_score = score;
