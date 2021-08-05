@@ -112,23 +112,15 @@ static const struct dw_pcie_ep_ops pcie_ep_ops = {
 	.raise_irq = dw_plat_pcie_ep_raise_irq,
 	.get_features = dw_plat_pcie_get_features,
 };
-
+/*
 static int dw_plat_add_pcie_port(struct dw_plat_pcie *dw_plat_pcie,
 				 struct platform_device *pdev)
 {
-
-
-        
-
 	struct dw_pcie *pci = dw_plat_pcie->pci;
 	struct pcie_port *pp = &pci->pp;
 	struct device *dev = &pdev->dev;
 	int ret;
         printk(KERN_INFO "PCIE:BAIKAL  start - dw_plat_add_pcie_port() \n");
-
-
-
-
 	pp->irq = platform_get_irq(pdev, 1);
 	if (pp->irq < 0)
 		return pp->irq;
@@ -152,7 +144,8 @@ static int dw_plat_add_pcie_port(struct dw_plat_pcie *dw_plat_pcie,
 
 
 	return 0;
-}
+}*/
+
 /*
 static int dw_plat_add_pcie_ep(struct dw_plat_pcie *dw_plat_pcie,
 			       struct platform_device *pdev)
