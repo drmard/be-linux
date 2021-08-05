@@ -20,12 +20,10 @@
 #include <linux/pci.h>
 #include <linux/phy/phy.h>
 #include <linux/resource.h>
-
 #include "pcie-designware.h"
-//#include <linux/mod_devicetable.h>
 
 struct baikal_pcie_rc {
-    struct pcie_port  pp;
+        struct pcie_port  pp;
 	struct dw_pcie	 *pcie;
 	unsigned	      bus_nr;
 	struct regmap	 *lcru;
@@ -843,9 +841,9 @@ static int baikal_pcie_hw_init_m(struct baikal_pcie_rc *rc)
 
 static const struct of_device_id of_baikal_pcie_match[] = {
 	{ .compatible = "baikal,pcie-m",
-      .type = "pci",
-      //.data = baikal_pcie_hw_init_m,
-    },
+          .type = "pci",
+          //.data = baikal_pcie_hw_init_m,
+        },
 	{}
 };
 MODULE_DEVICE_TABLE(of, of_baikal_pcie_match);
@@ -856,35 +854,37 @@ static const struct dw_pcie_ops baikal_pcie_ops = {
 
 static int baikal_pcie_probe(struct platform_device *pdev)
 {
-
     struct device *dev = &pdev->dev;
-    
     struct device_node *np = dev->of_node;
-
-    //struct resource *res ;
     struct baikal_pcie_rc *rc;
     struct dw_pcie *pcie;
-    const struct of_device_id *of_id;
-    int err;
-    int (*hw_init_fn)(struct baikal_pcie_rc *);
+    
+        const struct of_device_id *of_id;
+        int err;
+        int (*hw_init_fn)(struct baikal_pcie_rc *);
 	u32 idx[2];
 	enum of_gpio_flags gpio_flags;
 	int reset_gpio;
-    if (dev == 0)  printk (KERN_INFO "PCIE:BAIKAL dev == NULL \n");
-    if (dev == 0 || np == 0)  {
-        printk (KERN_INFO "%s:  dev == NULL or np == NULL \n",__func__);
+    if (dev == 0)  {
+        printk (KERN_INFO "%s PCIE:BE dev == NULL\n",__func__);
+        return -EINVAL;
+    }
+    if (np == 0)  {
+        printk (KERN_INFO "%s:  np == NULL \n",__func__);
         return -EINVAL;
     } else  {
-        printk (KERN_INFO "%s::   PCIE:BAIKAL dev is not NULL \n",__func__);
+        printk (KERN_INFO "%s::  dev and np != NULL\n",__func__);
     }
     dev_dbg(dev, "pci be_debug %x\n", be_debug);
 
-    /*
+    
 	if (!of_match_device(of_baikal_pcie_match, dev)) {
-		dev_err(dev, "device can't be handled by pcie-baikal\n");
-        printk(KERN_INFO "%s:  device cant be handled by pcie-baikal return - -EINVAL\n",__func__);
-		return -EINVAL;
-	}  */
+	dev_err(dev, "device can't be handled by pcie-baikal\n");
+        printk(
+        KERN_INFO "%s:  device cant be handled by pcie-baikal\n",
+        __func__);
+	return -EINVAL;
+	}
 
 	pcie = devm_kzalloc(dev, sizeof(*pcie), GFP_KERNEL);
 	if (!pcie) {
@@ -896,8 +896,10 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 	if (!rc) {
 		return -ENOMEM;
 	}
+
 	rc->pcie = pcie;
-	rc->lcru = syscon_regmap_lookup_by_phandle(dev->of_node,"baikal,pcie-lcru");
+	rc->lcru = syscon_regmap_lookup_by_phandle(
+np,"baikal,pcie-lcru");
 	if (IS_ERR(rc->lcru)) {
 		dev_err(dev, "No LCRU phandle specified\n");
 		rc->lcru = NULL;
@@ -922,14 +924,14 @@ static int baikal_pcie_probe(struct platform_device *pdev)
       printk (KERN_INFO "PCIE:BAIKAL dev of pcie:baikal is not Valid \n");
       return -22 ;
     }
-    /*
+    
     of_id = of_match_device (of_baikal_pcie_match, dev);
 	if (!of_id || !of_id->data) {
 		printk(KERN_INFO "**%s: Baikal pcie device can't be handled by pcie-baikal driver\n",__func__);
 		return -EINVAL;
 	} else {
         printk (KERN_INFO "%s PCIE:BAIKAL - success OF of_match_device() \n",__func__) ;
-    } */
+    }
 
     hw_init_fn = of_id->data;
     pm_runtime_enable(dev);
