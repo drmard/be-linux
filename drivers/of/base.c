@@ -1127,7 +1127,7 @@ const struct of_device_id *__of_match_node(const struct of_device_id *matches,
 		}
 	}
 if (best_match)
-printk (KERN_INFO "%s best_match - OK\n ",__func_) ;
+printk (KERN_INFO "%s best_match - OK\n ",__func__) ;
 	return best_match;
 }
 
