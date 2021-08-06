@@ -1053,8 +1053,9 @@ struct device_node {
   	} else {
   		dev_err(dev, "missing *dbi* reg space\n");
         printk  (KERN_INFO "%s   missing *dbi* reg space\n",__func__);
-  		ret = -EINVAL;
-  		goto err_pm_put;
+        return  -EINVAL;
+  		//ret = -EINVAL;
+  		//goto err_pm_put;
   	}
     
 
