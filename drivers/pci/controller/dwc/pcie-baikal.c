@@ -852,6 +852,10 @@ static const struct dw_pcie_ops baikal_pcie_ops = {
 	.link_up = baikal_pcie_link_up
 };
 
+
+
+
+
 static int baikal_pcie_probe(struct platform_device *pdev)
 {
     struct device *dev = &pdev->dev;
@@ -860,11 +864,12 @@ static int baikal_pcie_probe(struct platform_device *pdev)
     struct dw_pcie *pcie;
     
         const struct of_device_id *of_id;
-        int err;
+        int err,ret,reset_gpio;
         int (*hw_init_fn)(struct baikal_pcie_rc *);
 	u32 idx[2];
 	enum of_gpio_flags gpio_flags;
-	int reset_gpio;
+    struct resource  *res;
+	
     if (dev == 0)  {
         printk (KERN_INFO "%s PCIE:BE dev == NULL\n",__func__);
         return -EINVAL;
@@ -898,12 +903,13 @@ static int baikal_pcie_probe(struct platform_device *pdev)
         printk (KERN_INFO "%s  lcru phandle is invalid\n",__func__) ;
 		rc->lcru = NULL;
 		return -EINVAL;
-	}
+	} else {
+      printk (KERN_INFO  "%s  success:  syscon_regmap_lookup_by_phandle()\n",__func__);
+    }
 	if (of_property_read_u32_array(dev->of_node, "baikal,pcie-lcru", idx, 2)) {
 		rc->lcru = NULL;
 		return -EINVAL;
 	}
-    
 	if (idx[1] > 2) {
 		dev_err(dev, "incorrect pcie-lcru index\n");
 		rc->lcru = NULL;
@@ -911,7 +917,7 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 	rc->bus_nr = idx[1];
-    printk  (KERN_INFO"%s:  bus_nr - %d\n",__func__,rc->bus_nr);
+    //printk  (KERN_INFO"%s:  bus_nr - %d\n",__func__,rc->bus_nr);
 
 /*
 struct device_node {
@@ -936,24 +942,16 @@ struct device_node {
 #endif
 };
 */
-    /*
-	if (!of_match_device(of_baikal_pcie_match, dev)) {
-	    dev_err(dev, "device can't be handled by pcie-baikal\n");
-        printk(
-            KERN_INFO "%s:  device cant be handled by pcie-baikal\n", __func__);
-	    return -EINVAL;
-	}  */
 
 	of_id = of_match_device (of_baikal_pcie_match, dev);
 	if (!of_id || !of_id->data) {
-		printk(KERN_INFO "%s: pcie device can't be handled by pcie-baikal driver\n",__func__);
+		printk(
+        KERN_INFO "%s: pcie device can't be handled by pcie-baikal driver\n",__func__);
 		return -EINVAL;
 	} else {
-          printk (KERN_INFO "%s -------- success OF of_match_device() function\n",__func__);
-          //return -EINVAL ;
+      printk (
+      KERN_INFO "%s -------- success OF of_match_device() function\n",__func__);
     }
-
-
     pcie = devm_kzalloc(dev, sizeof(*pcie), GFP_KERNEL);
     if (!pcie) {
           printk (KERN_INFO"%s  pcie is NULL\n",__func__);
@@ -966,20 +964,11 @@ struct device_node {
     //hw_init_fn = of_id->data;
     //pm_runtime_enable(dev);
 
-    err = pm_runtime_get_sync(dev);
-    if (err < 0) {
-		  dev_err(dev, "pm_runtime_get_sync failed\n");
-          printk (KERN_INFO "%s pm_runtime_get_sync failed \n",__func__) ;
-          return -22;
-		  //goto err_pm_disable;
-    } else  {
-          printk(KERN_INFO"%s pm_runtime_get_sync() - OK \n",__func__) ;
-    }
 
-    baikal_pcie_cease_link(rc);
-
+    //baikal_pcie_cease_link(rc);
     // LINK DISABLED
-    
+
+    /*
 	reset_gpio = of_get_named_gpio_flags(dev->of_node, "reset-gpios", 0, &gpio_flags);
 	if (reset_gpio != -EPROBE_DEFER && gpio_is_valid(reset_gpio)) {
           unsigned long gpio_flags_be;
@@ -1002,7 +991,21 @@ struct device_node {
 	} else {
 	  rc->reset_gpio = NULL;
       return -22 ;
-	}
+	}  */
+
+
+  	reset_gpio = of_get_named_gpio_flags(dev->of_node, "reset-gpios", 0,
+  					     &gpio_flags);
+  	if (gpio_is_valid(reset_gpio)) {
+  		rc->reset_gpio = gpio_to_desc(reset_gpio);
+  		rc->reset_active_low = !!(gpio_flags & OF_GPIO_ACTIVE_LOW);
+  		snprintf(rc->reset_name, sizeof(rc->reset_name), "pcie%u-reset",
+  			 rc->bus_nr);
+  	} else {
+  		rc->reset_gpio = NULL;
+    printk(KERN_INFO "%s   rc->reset_gpio == NULL\n",__func__);
+  	}
+
     /*
     err = 0;
     if (hw_init_fn != NULL) {
@@ -1014,13 +1017,20 @@ struct device_node {
       }
     } */
 
-    // PHY INITIALIZED
-    err = baikal_pcie_add_pcie_port(rc, pdev);
-    if (err < 0) {
-      printk (KERN_INFO "**%s: PCIE:BAIKAL - cannot add pcie port\n",__func__);
-      return  -22;
-      //goto err_pm_put;
+    pm_runtime_enable(dev);
+    ret = pm_runtime_get_sync(dev);
+    if (ret < 0) {
+		  dev_err(dev, "pm_runtime_get_sync failed\n");
+          printk (KERN_INFO "%s pm_runtime_get_sync failed \n",__func__) ;
+          //return -22;
+          goto err_pm_disable;
+    } else {
+          printk(KERN_INFO "%s pm_runtime_get_sync() - OK \n",__func__) ;
     }
+
+
+    // PHY INITIALIZED
+
 
     /*
 	pm_runtime_enable(dev);
@@ -1031,27 +1041,34 @@ struct device_node {
 	}    */
 
 	platform_set_drvdata(pdev, rc);
+  	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dbi");
+  	if (res) {
+  		devm_request_resource(dev, &iomem_resource, res);
+  		pcie->dbi_base = devm_ioremap_resource(dev, res);
+  		if (IS_ERR(pcie->dbi_base)) {
+  			dev_err(dev, "error with ioremap\n");
+  			ret = PTR_ERR(pcie->dbi_base);
+  			goto err_pm_put;
+  		}
+  	} else {
+  		dev_err(dev, "missing *dbi* reg space\n");
+        printk  (KERN_INFO "%s   missing *dbi* reg space\n",__func__);
+  		ret = -EINVAL;
+  		goto err_pm_put;
+  	}
+    
 
-    /*
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dbi");
-	if (res) {
-		devm_request_resource(dev, &iomem_resource, res);
-		pcie->dbi_base = devm_ioremap_resource(dev, res);
-		if (IS_ERR(pcie->dbi_base)) {
-			dev_err(dev, "error with ioremap\n");
-			ret = PTR_ERR(pcie->dbi_base);
-			goto err_pm_put;
-		}
-	} else {
-		dev_err(dev, "missing *dbi* reg space\n");
-		ret = -EINVAL;
-		goto err_pm_put;
-	}
+    ret = baikal_pcie_add_pcie_port(rc, pdev);
+    if (ret < 0) {
+      printk (KERN_INFO "**%s:  - cannot add pcie port\n",__func__);
+      goto err_pm_put;
+    } else {
+      printk (KERN_INFO "%s: add pcie port: SUCCESS!\n",__func__);
+    }
 
-	ret = baikal_pcie_add_pcie_port(rc, pdev);
-	if (ret < 0) {
-		goto err_pm_put;
-	}*/
+
+
+
     printk (KERN_INFO "**%s: PCIE:BAIKAL - baikal_pcie_probe() - OK\n",__func__);
 
 	return 0;
@@ -1060,7 +1077,7 @@ err_pm_put:
 	pm_runtime_put(dev);
 err_pm_disable:
 	pm_runtime_disable(dev);
-	return err;
+	return ret;
 }
 
 module_param(be_debug, int, 0644);
