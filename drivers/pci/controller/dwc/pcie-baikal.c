@@ -23,7 +23,7 @@
 #include "pcie-designware.h"
 
 struct baikal_pcie_rc {
-        struct pcie_port  pp;
+    struct pcie_port  pp;
 	struct dw_pcie	 *pcie;
 	unsigned	      bus_nr;
 	struct regmap	 *lcru;
@@ -950,37 +950,36 @@ struct device_node {
 		return -EINVAL;
 	} else {
           printk (KERN_INFO "%s -------- success OF of_match_device() function\n",__func__);
-          return -EINVAL ;
-        }
+          //return -EINVAL ;
+    }
 
 
-        pcie = devm_kzalloc(dev, sizeof(*pcie), GFP_KERNEL);
-        if (!pcie) {
+    pcie = devm_kzalloc(dev, sizeof(*pcie), GFP_KERNEL);
+    if (!pcie) {
           printk (KERN_INFO"%s  pcie is NULL\n",__func__);
 		  return -ENOMEM;
-	    }
+	}
 
 	pcie->dev = dev;
 	pcie->ops = &baikal_pcie_ops;
 	rc->pcie = pcie;
+    //hw_init_fn = of_id->data;
+    //pm_runtime_enable(dev);
 
-        //hw_init_fn = of_id->data;
-        //pm_runtime_enable(dev);
-
-        err = pm_runtime_get_sync(dev);
-        if (err < 0) {
+    err = pm_runtime_get_sync(dev);
+    if (err < 0) {
 		  dev_err(dev, "pm_runtime_get_sync failed\n");
           printk (KERN_INFO "%s pm_runtime_get_sync failed \n",__func__) ;
           return -22;
 		  //goto err_pm_disable;
-        }
+    } else  {
+          printk(KERN_INFO"%s pm_runtime_get_sync() - OK \n",__func__) ;
+    }
 
-
-        baikal_pcie_cease_link(rc);
-
+    baikal_pcie_cease_link(rc);
 
     // LINK DISABLED
-    /*
+    
 	reset_gpio = of_get_named_gpio_flags(dev->of_node, "reset-gpios", 0, &gpio_flags);
 	if (reset_gpio != -EPROBE_DEFER && gpio_is_valid(reset_gpio)) {
           unsigned long gpio_flags_be;
@@ -990,7 +989,6 @@ struct device_node {
         } else {
             gpio_flags_be = GPIOF_OUT_INIT_HIGH;
         }
-
         err = devm_gpio_request_one (dev,reset_gpio,gpio_flags_be,rc->reset_name);
         if (err) {
             dev_err(dev, "request GPIO failed (%d)\n", err);
@@ -1004,7 +1002,7 @@ struct device_node {
 	} else {
 	  rc->reset_gpio = NULL;
       return -22 ;
-	}   */
+	}
     /*
     err = 0;
     if (hw_init_fn != NULL) {
@@ -1021,8 +1019,9 @@ struct device_node {
     if (err < 0) {
       printk (KERN_INFO "**%s: PCIE:BAIKAL - cannot add pcie port\n",__func__);
       return  -22;
-      goto err_pm_put;
+      //goto err_pm_put;
     }
+
     /*
 	pm_runtime_enable(dev);
 	ret = pm_runtime_get_sync(dev);
