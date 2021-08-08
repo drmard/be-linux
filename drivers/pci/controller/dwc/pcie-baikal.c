@@ -751,12 +751,13 @@ static int baikal_pcie_pm_resume(struct device *dev)
 }
 
 static void baikal_pcie_cease_link(struct baikal_pcie_rc *rc)
-{prnitk (KERN_INFO "%s  start  \n",__func__) ;
-	u32 reg;
+ 
+{       
+u32  reg ;
+printk (KERN_INFO "%s  start  \n",__func__) ;
+
 	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr));
 	reg &= ~BAIKAL_PCIE_LTSSM_ENABLE;
--
-
 	baikal_pcie_lcru_writel(rc->lcru, BAIKAL_LCRU_PCIE_GEN_CTL(rc->bus_nr), reg);
 
     printk (KERN_INFO "%s  end of %s - success \n",__func__,__func__);
@@ -768,10 +769,10 @@ static int baikal_pcie_pm_resume_noirq(struct device *dev)
 }
 
 static int baikal_pcie_pm_suspend(struct device *dev)
-{
+{       u32  reg;
+
 	struct baikal_pcie_rc *rc = dev_get_drvdata(dev);
 	struct dw_pcie *pcie = rc->pcie;
-	u32 reg;
 
 	/* Clear Memory Space Enable (MSE) bit */
 	reg = dw_pcie_readl_dbi(pcie, PCI_COMMAND);
@@ -863,7 +864,7 @@ static const struct dw_pcie_ops baikal_pcie_ops = {
 
 static int _init_hw(struct baikal_pcie_rc *rc)
 {
-  unsgined int timeout = 10;
+  //int timeout = 10;
   u32 reg;
 	reg = baikal_pcie_lcru_readl(rc->lcru, BAIKAL_LCRU_PCIE_RESET(rc->bus_nr));
 	reg &= ~BAIKAL_PCIE_PHY_RESET;
@@ -884,7 +885,7 @@ static int __init baikal_pcie_probe(struct platform_device *pdev)
         int err,ret,reset_gpio;
         int (*hw_init_fn)(struct baikal_pcie_rc *);
 	u32 idx[2];
-	enum of_gpio_flags gpio_flags;
+	enum of_gpio_flags flags;
     struct resource  *res;
 	
     if (dev == 0)  {
@@ -977,84 +978,51 @@ struct device_node {
 	pcie->dev = dev;
 	pcie->ops = &baikal_pcie_ops;
 	rc->pcie = pcie;
-
+/*
 
 	pm_runtime_enable(dev);
 	err = pm_runtime_get_sync(dev);
 	if (err < 0) {
 		dev_err(dev, "pm_runtime_get_sync failed\n");
 		goto err_pm_disable;
-	}
+	}*/
 
-    baikal_pcie_cease_link(rc);
+    baikal_pcie_cease_link(rc); 
     // LINK DISABLED
 
-    /*
-  	reset_gpio = of_get_named_gpio_flags(dev->of_node, "reset-gpios", 0,&gpio_flags);
-  	if (gpio_is_valid(reset_gpio)) {
-  		rc->reset_gpio = gpio_to_desc(reset_gpio);
-  		rc->reset_active_low = !!(gpio_flags & OF_GPIO_ACTIVE_LOW);
-  		snprintf(rc->reset_name, sizeof(rc->reset_name), "pcie%u-reset",
-  			 rc->bus_nr);
-  	} else {
-  		rc->reset_gpio = NULL;
-        printk(KERN_INFO "%s   rc->reset_gpio == NULL\n",__func__);
-        return  -22;
-  	}*/
-
+/*
 
 	reset_gpio = of_get_named_gpio_flags(dev->of_node, "reset-gpios", 0, &flags);
 	if (reset_gpio != -EPROBE_DEFER && gpio_is_valid(reset_gpio)) {
 		unsigned long gpio_flags;
 
-		snprintf(pcie->reset_name, 32, "pcie%d-reset", pcie->bus_nr);
+		snprintf(rc->reset_name, 32, "pcie%d-reset", rc->bus_nr);
 		if (flags & OF_GPIO_ACTIVE_LOW)
 			gpio_flags = GPIOF_ACTIVE_LOW | GPIOF_OUT_INIT_LOW;
 		else
 			gpio_flags = GPIOF_OUT_INIT_HIGH;
-		err = devm_gpio_request_one(dev, reset_gpio, gpio_flags,
-					    pcie->reset_name);
+		err = devm_gpio_request_one(dev, reset_gpio, gpio_flags, rc->reset_name);
 		if (err) {
 			dev_err(dev, "request GPIO failed (%d)\n", err);
             printk (KERN_INFO "%s request GPIO failed \n",__func__);
             return  -22 ;
 			//goto err_pm_disable;
 		}
-		pcie->reset_gpio = gpio_to_desc(reset_gpio);
+		rc->reset_gpio = gpio_to_desc(reset_gpio);
 		udelay(100);
         //vvv: do it now or later in baikal_pcie_host_init()?
-		gpiod_set_value_cansleep(pcie->reset_gpio, 0);
+		gpiod_set_value_cansleep(rc->reset_gpio, 0);
 	} else {
     }
 
-
+*/
     err  = _init_hw (rc);
     if (err) { 
       printk(KERN_INFO "%s: link down: _hw_init() failed\n",__func__);
       return -22 ;
       //goto err_pm_put;
     }
-    /*
-    err = 0;
-    if (hw_init_fn != NULL) {
-      err = hw_init_fn(rc);
-      if (err) {
-        printk(KERN_INFO "**%s: Baikal PCIe link down\n",__func__);
-        err = 0;
-        goto err_pm_put;
-      }
-    } */
 
-    pm_runtime_enable(dev);
-    ret = pm_runtime_get_sync(dev);
-    if (ret < 0) {
-		  dev_err(dev, "pm_runtime_get_sync failed\n");
-          printk (KERN_INFO "%s pm_runtime_get_sync failed \n",__func__) ;
-          return -22;
-          //goto err_pm_disable;
-    } else {
-          printk(KERN_INFO "%s pm_runtime_get_sync() - OK \n",__func__) ;
-    }
 
 
 
@@ -1077,7 +1045,7 @@ struct device_node {
   		//goto err_pm_put;
   	}  */
     
-
+/*
     ret = baikal_pcie_add_pcie_port(rc, pdev);
     if (ret < 0) {
       printk (KERN_INFO "**%s:  - cannot add pcie port\n",__func__);
@@ -1086,11 +1054,11 @@ struct device_node {
       printk (KERN_INFO "%s: add pcie port: SUCCESS!\n",__func__);
     }
 
+*/
 
 
-
-    printk (KERN_INFO "**%s: PCIE:BAIKAL - baikal_pcie_probe() - OK\n",__func__);
-
+    printk (
+    KERN_INFO "**%s: PCIE:BAIKAL - baikal_pcie_probe() - OK  returned 0\n",__func__);
 	return 0;
 
 err_pm_put:

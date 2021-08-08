@@ -112,7 +112,7 @@ static const struct dw_pcie_ep_ops pcie_ep_ops = {
 	.raise_irq = dw_plat_pcie_ep_raise_irq,
 	.get_features = dw_plat_pcie_get_features,
 };
-
+/*
 static int dw_plat_add_pcie_port(struct dw_plat_pcie *dw_plat_pcie,
 				 struct platform_device *pdev)
 {
@@ -125,10 +125,6 @@ static int dw_plat_add_pcie_port(struct dw_plat_pcie *dw_plat_pcie,
 	struct device *dev = &pdev->dev;
 	int ret;
         printk(KERN_INFO "PCIE:BAIKAL  start - dw_plat_add_pcie_port() \n");
-
-
-
-
 	pp->irq = platform_get_irq(pdev, 1);
 	if (pp->irq < 0)
 		return pp->irq;
@@ -140,7 +136,6 @@ static int dw_plat_add_pcie_port(struct dw_plat_pcie *dw_plat_pcie,
 	}
 
 	pp->ops = &dw_plat_pcie_host_ops;
-
 	ret = dw_pcie_host_init(pp);
 	if (ret) {
 		dev_err(dev, "Failed to initialize host\n");
@@ -153,6 +148,7 @@ static int dw_plat_add_pcie_port(struct dw_plat_pcie *dw_plat_pcie,
 
 	return 0;
 }
+*/
 /*
 static int dw_plat_add_pcie_ep(struct dw_plat_pcie *dw_plat_pcie,
 			       struct platform_device *pdev)
