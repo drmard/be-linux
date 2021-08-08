@@ -77,9 +77,14 @@ struct baikal_pcie_rc {
 #define PCIE_DIRECT_SPEED_CHANGE		BIT(17)
 
 #define PCIE_MSI_CTRL_ADDR_LO_REG		0x820
+#define PCIE_MSI_ADDR_LO		        0x820
+
 #define PCIE_MSI_CTRL_ADDR_HI_REG		0x824
+#define PCIE_MSI_ADDR_HI		        0x824
 
 #define PCIE_IATU_VIEWPORT_REG			0x900
+#define PCIE_ATU_VIEWPORT               0x900
+
 #define PCIE_IATU_REGION_INBOUND		BIT(31)
 #define PCIE_IATU_REGION_OUTBOUND		0
 #define PCIE_IATU_REGION_CTRL_2_REG		0x908
@@ -403,7 +408,8 @@ static int baikal_pcie_get_msi(struct baikal_pcie_rc *rc,
 }
 
 
-static int baikal_pcie_msi_steer(struct baikal_pcie_rc *rc,struct device_node *msi_node)
+static int baikal_pcie_msi_steer(struct baikal_pcie_rc *rc,
+  struct device_node *msi_node)
 {
 	struct pcie_port *pp = &rc->pp;
 	struct device *dev = pp->dev;
@@ -856,7 +862,7 @@ static const struct dw_pcie_ops baikal_pcie_ops = {
 
 
 
-static int baikal_pcie_probe(struct platform_device *pdev)
+static int __init baikal_pcie_probe(struct platform_device *pdev)
 {
     struct device *dev = &pdev->dev;
     struct device_node *np = dev->of_node;
@@ -881,7 +887,7 @@ static int baikal_pcie_probe(struct platform_device *pdev)
         printk (KERN_INFO "%s::  dev and np != NULL\n",__func__);
     }
     dev_dbg(dev, "pci be_debug %x\n", be_debug);
-
+    /*
     if (np->name[0])
     printk (KERN_INFO"%s  device_node#name : %s\n",__func__,np->name);
     else
@@ -890,8 +896,7 @@ static int baikal_pcie_probe(struct platform_device *pdev)
     printk (KERN_INFO"%s  device_node#full_name : %s\n",__func__,np->full_name);
     else
     printk (KERN_INFO"%s  device_node#full_name NULL\n",__func__);
-
-
+    */
 	rc = devm_kzalloc(dev, sizeof(*rc), GFP_KERNEL);
 	if (!rc){
 		return -ENOMEM;
@@ -904,7 +909,7 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 		rc->lcru = NULL;
 		return -EINVAL;
 	} else {
-      printk (KERN_INFO  "%s  success:  syscon_regmap_lookup_by_phandle()\n",__func__);
+        printk (KERN_INFO"%s success: syscon_regmap_lookup_by_phandle()\n",__func__);
     }
 	if (of_property_read_u32_array(dev->of_node, "baikal,pcie-lcru", idx, 2)) {
 		rc->lcru = NULL;
@@ -913,7 +918,7 @@ static int baikal_pcie_probe(struct platform_device *pdev)
 	if (idx[1] > 2) {
 		dev_err(dev, "incorrect pcie-lcru index\n");
 		rc->lcru = NULL;
-                printk(KERN_INFO "%s  incorrect pcie-lcru\n",__func__);
+        printk(KERN_INFO "%s  incorrect pcie-lcru\n",__func__);
 		return -EINVAL;
 	}
 	rc->bus_nr = idx[1];
@@ -950,7 +955,7 @@ struct device_node {
 		return -EINVAL;
 	} else {
       printk (
-      KERN_INFO "%s -------- success OF of_match_device() function\n",__func__);
+      KERN_INFO "%s ---success OF of_match_device() function\n",__func__);
     }
     pcie = devm_kzalloc(dev, sizeof(*pcie), GFP_KERNEL);
     if (!pcie) {
@@ -962,40 +967,11 @@ struct device_node {
 	pcie->ops = &baikal_pcie_ops;
 	rc->pcie = pcie;
     //hw_init_fn = of_id->data;
-    //pm_runtime_enable(dev);
-
-
-    //baikal_pcie_cease_link(rc);
+    pm_runtime_enable(dev);
+    baikal_pcie_cease_link(rc);
     // LINK DISABLED
 
-    /*
-	reset_gpio = of_get_named_gpio_flags(dev->of_node, "reset-gpios", 0, &gpio_flags);
-	if (reset_gpio != -EPROBE_DEFER && gpio_is_valid(reset_gpio)) {
-          unsigned long gpio_flags_be;
-          snprintf(rc->reset_name, 32, "pcie%d-reset", rc->bus_nr);
-        if (gpio_flags & OF_GPIO_ACTIVE_LOW) {
-            gpio_flags_be= GPIOF_ACTIVE_LOW | GPIOF_OUT_INIT_LOW; 
-        } else {
-            gpio_flags_be = GPIOF_OUT_INIT_HIGH;
-        }
-        err = devm_gpio_request_one (dev,reset_gpio,gpio_flags_be,rc->reset_name);
-        if (err) {
-            dev_err(dev, "request GPIO failed (%d)\n", err);
-            goto err_pm_disable;
-        }
-        rc->reset_gpio = gpio_to_desc(reset_gpio);
-        rc->reset_active_low = !!(gpio_flags & OF_GPIO_ACTIVE_LOW);
-        udelay(100);
-        gpiod_set_value_cansleep(rc->reset_gpio, 0);
-        //snprintf(rc->reset_name, sizeof(rc->reset_name), "pcie%u-reset",rc->bus_nr);
-	} else {
-	  rc->reset_gpio = NULL;
-      return -22 ;
-	}  */
-
-
-  	reset_gpio = of_get_named_gpio_flags(dev->of_node, "reset-gpios", 0,
-  					     &gpio_flags);
+  	reset_gpio = of_get_named_gpio_flags(dev->of_node, "reset-gpios", 0,&gpio_flags);
   	if (gpio_is_valid(reset_gpio)) {
   		rc->reset_gpio = gpio_to_desc(reset_gpio);
   		rc->reset_active_low = !!(gpio_flags & OF_GPIO_ACTIVE_LOW);
@@ -1003,7 +979,8 @@ struct device_node {
   			 rc->bus_nr);
   	} else {
   		rc->reset_gpio = NULL;
-    printk(KERN_INFO "%s   rc->reset_gpio == NULL\n",__func__);
+        printk(KERN_INFO "%s   rc->reset_gpio == NULL\n",__func__);
+        return  -22;
   	}
 
     /*
@@ -1029,16 +1006,7 @@ struct device_node {
     }
 
 
-    // PHY INITIALIZED
 
-
-    /*
-	pm_runtime_enable(dev);
-	ret = pm_runtime_get_sync(dev);
-	if (ret < 0) {
-		dev_err(dev, "pm_runtime_get_sync failed\n");
-		goto err_pm_disable;
-	}    */
 
 	platform_set_drvdata(pdev, rc);
   	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dbi");
