@@ -271,6 +271,12 @@ config 88X2222_PHY
 	  Multi-speed Ethernet Transceivers.
 	  Currently supports 88x2222
 
+config 88E1512_PHY
+	tristate "Drivers for Marvell 88E1512 Tanceiver"
+	---help---
+	  Support for Marvell Integrated Transceivers
+	  88e1512
+
 config ADIN_PHY
 	tristate "Analog Devices Industrial Ethernet PHYs"
 	help
