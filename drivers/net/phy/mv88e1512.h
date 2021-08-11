@@ -32,7 +32,7 @@
  #define _MV88E1512_DRIVER_H
   
  //Dependencies
- #include "core/nic.h"
+ //#include "core/nic.h"
   
  //PHY address
  #ifndef MV88E1512_PHY_ADDR

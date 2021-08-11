@@ -32,9 +32,9 @@
  #define TRACE_LEVEL NIC_TRACE_LEVEL
   
  //Dependencies
- #include "core/net.h"
- #include "drivers/phy/mv88e1512.h"
- #include "debug.h"
+ //#include "core/net.h"
+ #include "drivers/net/phy/mv88e1512.h"
+ //#include "debug.h"
   
   
  /**
