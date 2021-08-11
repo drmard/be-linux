@@ -83,14 +83,20 @@
 
 #define MII_88E1121_MISC_TEST				0x1a
 #define MII_88E1510_MISC_TEST_TEMP_THRESHOLD_MASK	0x1f00
+#define MII_88E1512_MISC_TEST_TEMP_THRESHOLD_MASK	0x1f00
 #define MII_88E1510_MISC_TEST_TEMP_THRESHOLD_SHIFT	8
+#define MII_88E1512_MISC_TEST_TEMP_THRESHOLD_SHIFT	8
 #define MII_88E1510_MISC_TEST_TEMP_IRQ_EN		BIT(7)
+#define MII_88E1512_MISC_TEST_TEMP_IRQ_EN		BIT(7)
 #define MII_88E1510_MISC_TEST_TEMP_IRQ			BIT(6)
+#define MII_88E1512_MISC_TEST_TEMP_IRQ			BIT(6)
 #define MII_88E1121_MISC_TEST_TEMP_SENSOR_EN		BIT(5)
 #define MII_88E1121_MISC_TEST_TEMP_MASK			0x1f
 
 #define MII_88E1510_TEMP_SENSOR		0x1b
+#define MII_88E1512_TEMP_SENSOR		0x1b
 #define MII_88E1510_TEMP_SENSOR_MASK	0xff
+#define MII_88E1512_TEMP_SENSOR_MASK	0xff
 
 #define MII_88E1540_COPPER_CTRL3	0x1a
 #define MII_88E1540_COPPER_CTRL3_LINK_DOWN_DELAY_MASK	GENMASK(11, 10)
@@ -137,7 +143,9 @@
 #define MII_PHY_LED_CTRL	        16
 #define MII_88E1121_PHY_LED_DEF		0x0030
 #define MII_88E1510_PHY_LED_DEF		0x1177
+#define MII_88E1512_PHY_LED_DEF		0x1177
 #define MII_88E1510_PHY_LED0_LINK_LED1_ACTIVE	0x1040
+#define MII_88E1512_PHY_LED0_LINK_LED1_ACTIVE	0x1040
 
 #define MII_M1011_PHY_STATUS		0x11
 #define MII_M1011_PHY_STATUS_1000	0x8000
@@ -152,9 +160,13 @@
 #define MII_88E3016_AUTO_MDIX_CROSSOVER	0x0030
 
 #define MII_88E1510_GEN_CTRL_REG_1		0x14
+#define MII_88E1512_GEN_CTRL_REG_1		0x14
 #define MII_88E1510_GEN_CTRL_REG_1_MODE_MASK	0x7
+#define MII_88E1512_GEN_CTRL_REG_1_MODE_MASK	0x7
 #define MII_88E1510_GEN_CTRL_REG_1_MODE_SGMII	0x1	/* SGMII to copper */
+#define MII_88E1512_GEN_CTRL_REG_1_MODE_SGMII	0x1	/* SGMII to copper */
 #define MII_88E1510_GEN_CTRL_REG_1_RESET	0x8000	/* Soft reset */
+#define MII_88E1512_GEN_CTRL_REG_1_RESET	0x8000	/* Soft reset */
 
 #define LPA_FIBER_1000HALF	0x40
 #define LPA_FIBER_1000FULL	0x20
@@ -617,6 +629,39 @@ error:
 	return err;
 }
 
+static int m88e1512_config_aneg(struct phy_device *phydev)
+{
+	int err;
+
+	err = marvell_set_page(phydev, MII_MARVELL_COPPER_PAGE);
+	if (err < 0)
+		goto error;
+
+	/* Configure the copper link first */
+	err = m88e1318_config_aneg(phydev);
+	if (err < 0)
+		goto error;
+
+	/* Do not touch the fiber page if we're in copper->sgmii mode */
+	if (phydev->interface == PHY_INTERFACE_MODE_SGMII)
+		return 0;
+
+	/* Then the fiber link */
+	err = marvell_set_page(phydev, MII_MARVELL_FIBER_PAGE);
+	if (err < 0)
+		goto error;
+
+	err = marvell_config_aneg_fiber(phydev);
+	if (err < 0)
+		goto error;
+
+	return marvell_set_page(phydev, MII_MARVELL_COPPER_PAGE);
+
+error:
+	marvell_set_page(phydev, MII_MARVELL_COPPER_PAGE);
+	return err;
+}
+
 static void marvell_config_led(struct phy_device *phydev)
 {
 	u16 def_config;
@@ -639,6 +684,14 @@ static void marvell_config_led(struct phy_device *phydev)
 		else
 			def_config = MII_88E1510_PHY_LED_DEF;
 		break;
+
+    case MARVELL_PHY_FAMILY_ID(MARVELL_PHY_ID_88E1512):
+		if (phydev->dev_flags & MARVELL_PHY_LED0_LINK_LED1_ACTIVE)
+			def_config = MII_88E1512_PHY_LED0_LINK_LED1_ACTIVE;
+		else
+			def_config = MII_88E1512_PHY_LED_DEF;
+		break;
+
 	default:
 		return;
 	}
@@ -870,6 +923,43 @@ static int m88e1510_config_init(struct phy_device *phydev)
 		/* PHY reset is necessary after changing MODE[2:0] */
 		err = phy_modify(phydev, MII_88E1510_GEN_CTRL_REG_1, 0,
 				 MII_88E1510_GEN_CTRL_REG_1_RESET);
+		if (err < 0)
+			return err;
+
+		/* Reset page selection */
+		err = marvell_set_page(phydev, MII_MARVELL_COPPER_PAGE);
+		if (err < 0)
+			return err;
+	}
+
+	return m88e1318_config_init(phydev);
+}
+
+static int m88e1512_config_init(struct phy_device *phydev)
+{
+	int err;
+
+	/* SGMII-to-Copper mode initialization */
+	if (phydev->interface == PHY_INTERFACE_MODE_SGMII) {
+		/* Select page 18 */
+		err = marvell_set_page(phydev, 18);
+		if (err < 0)
+			return err;
+
+		/* In reg 20, write MODE[2:0] = 0x1 (SGMII to Copper) */
+		err = phy_modify(phydev,
+                 MII_88E1512_GEN_CTRL_REG_1,
+				 MII_88E1512_GEN_CTRL_REG_1_MODE_MASK,
+				 //MII_88E1510_GEN_CTRL_REG_1_MODE_SGMII,
+                 MII_88E1512_GEN_CTRL_REG_1_MODE_SGMII
+                 );
+		if (err < 0)
+			return err;
+
+		/* PHY reset is necessary after changing MODE[2:0] */
+		err = phy_modify(phydev, MII_88E1512_GEN_CTRL_REG_1, 0,
+                 MII_88E1512_GEN_CTRL_REG_1_RESET
+                 );
 		if (err < 0)
 			return err;
 
@@ -1764,6 +1854,23 @@ static int m88e1510_get_temp(struct phy_device *phydev, long *temp)
 	return 0;
 }
 
+static int m88e1512_get_temp(struct phy_device *phydev, long *temp)
+{
+	int ret;
+
+	*temp = 0;
+
+	ret = phy_read_paged(phydev, MII_MARVELL_MISC_TEST_PAGE,
+			     //MII_88E1510_TEMP_SENSOR
+                 MII_88E1512_TEMP_SENSOR);
+	if (ret < 0)
+		return ret;
+
+	*temp = ((ret & MII_88E1512_TEMP_SENSOR_MASK) - 25) * 1000;
+
+	return 0;
+}
+
 static int m88e1510_get_temp_critical(struct phy_device *phydev, long *temp)
 {
 	int ret;
@@ -1783,6 +1890,25 @@ static int m88e1510_get_temp_critical(struct phy_device *phydev, long *temp)
 	return 0;
 }
 
+static int m88e1512_get_temp_critical(struct phy_device *phydev, long *temp)
+{
+	int ret;
+
+	*temp = 0;
+
+	ret = phy_read_paged(phydev, MII_MARVELL_MISC_TEST_PAGE,
+			     MII_88E1121_MISC_TEST);
+	if (ret < 0)
+		return ret;
+
+	*temp = (((ret & MII_88E1512_MISC_TEST_TEMP_THRESHOLD_MASK) >>
+		  MII_88E1512_MISC_TEST_TEMP_THRESHOLD_SHIFT) * 5) - 25;
+	/* convert to mC */
+	*temp *= 1000;
+
+	return 0;
+}
+
 static int m88e1510_set_temp_critical(struct phy_device *phydev, long temp)
 {
 	temp = temp / 1000;
@@ -1792,6 +1918,29 @@ static int m88e1510_set_temp_critical(struct phy_device *phydev, long temp)
 				MII_88E1121_MISC_TEST,
 				MII_88E1510_MISC_TEST_TEMP_THRESHOLD_MASK,
 				temp << MII_88E1510_MISC_TEST_TEMP_THRESHOLD_SHIFT);
+}
+
+static int m88e1512_set_temp_critical(struct phy_device *phydev, long temp)
+{
+	temp = temp / 1000;
+	temp = clamp_val(DIV_ROUND_CLOSEST(temp, 5) + 5, 0, 0x1f);
+
+	return phy_modify_paged(phydev, MII_MARVELL_MISC_TEST_PAGE,
+				MII_88E1121_MISC_TEST,
+				MII_88E1512_MISC_TEST_TEMP_THRESHOLD_MASK,
+				temp << MII_88E1512_MISC_TEST_TEMP_THRESHOLD_SHIFT);
+}
+
+
+static int m88e1512_set_temp_critical(struct phy_device *phydev, long temp)
+{
+	temp = temp / 1000;
+	temp = clamp_val(DIV_ROUND_CLOSEST(temp, 5) + 5, 0, 0x1f);
+
+	return phy_modify_paged(phydev, MII_MARVELL_MISC_TEST_PAGE,
+				MII_88E1121_MISC_TEST,
+				MII_88E1512_MISC_TEST_TEMP_THRESHOLD_MASK,
+				temp << MII_88E1512_MISC_TEST_TEMP_THRESHOLD_SHIFT);
 }
 
 static int m88e1510_get_temp_alarm(struct phy_device *phydev, long *alarm)
@@ -1806,6 +1955,22 @@ static int m88e1510_get_temp_alarm(struct phy_device *phydev, long *alarm)
 		return ret;
 
 	*alarm = !!(ret & MII_88E1510_MISC_TEST_TEMP_IRQ);
+
+	return 0;
+}
+
+static int m88e1512_get_temp_alarm(struct phy_device *phydev, long *alarm)
+{
+	int ret;
+
+	*alarm = false;
+
+	ret = phy_read_paged(phydev, MII_MARVELL_MISC_TEST_PAGE,
+			     MII_88E1121_MISC_TEST);
+	if (ret < 0)
+		return ret;
+
+	*alarm = !!(ret & MII_88E1512_MISC_TEST_TEMP_IRQ);
 
 	return 0;
 }
@@ -1834,6 +1999,31 @@ static int m88e1510_hwmon_read(struct device *dev,
 	return err;
 }
 
+static int m88e1512_hwmon_read(struct device *dev,
+			       enum hwmon_sensor_types type,
+			       u32 attr, int channel, long *temp)
+{
+	struct phy_device *phydev = dev_get_drvdata(dev);
+	int err;
+
+	switch (attr) {
+	case hwmon_temp_input:
+		err = m88e1512_get_temp(phydev, temp);
+		break;
+	case hwmon_temp_crit:
+		err = m88e1512_get_temp_critical(phydev, temp);
+		break;
+	case hwmon_temp_max_alarm:
+		err = m88e1512_get_temp_alarm(phydev, temp);
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	return err;
+}
+
+
 static int m88e1510_hwmon_write(struct device *dev,
 				enum hwmon_sensor_types type,
 				u32 attr, int channel, long temp)
@@ -1844,6 +2034,23 @@ static int m88e1510_hwmon_write(struct device *dev,
 	switch (attr) {
 	case hwmon_temp_crit:
 		err = m88e1510_set_temp_critical(phydev, temp);
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
+	return err;
+}
+
+static int m88e1512_hwmon_write(struct device *dev,
+				enum hwmon_sensor_types type,
+				u32 attr, int channel, long temp)
+{
+	struct phy_device *phydev = dev_get_drvdata(dev);
+	int err;
+
+	switch (attr) {
+	case hwmon_temp_crit:
+		err = m88e1512_set_temp_critical(phydev, temp);
 		break;
 	default:
 		return -EOPNOTSUPP;
@@ -1869,7 +2076,30 @@ static umode_t m88e1510_hwmon_is_visible(const void *data,
 	}
 }
 
+static umode_t m88e1512_hwmon_is_visible(const void *data,
+					 enum hwmon_sensor_types type,
+					 u32 attr, int channel)
+{
+	if (type != hwmon_temp)
+		return 0;
+
+	switch (attr) {
+	case hwmon_temp_input:
+	case hwmon_temp_max_alarm:
+		return 0444;
+	case hwmon_temp_crit:
+		return 0644;
+	default:
+		return 0;
+	}
+}
+
 static u32 m88e1510_hwmon_temp_config[] = {
+	HWMON_T_INPUT | HWMON_T_CRIT | HWMON_T_MAX_ALARM,
+	0
+};
+
+static u32 m88e1512_hwmon_temp_config[] = {
 	HWMON_T_INPUT | HWMON_T_CRIT | HWMON_T_MAX_ALARM,
 	0
 };
@@ -1879,9 +2109,20 @@ static const struct hwmon_channel_info m88e1510_hwmon_temp = {
 	.config = m88e1510_hwmon_temp_config,
 };
 
+static const struct hwmon_channel_info m88e1512_hwmon_temp = {
+	.type = hwmon_temp,
+	.config = m88e1512_hwmon_temp_config,
+};
+
 static const struct hwmon_channel_info *m88e1510_hwmon_info[] = {
 	&m88e1121_hwmon_chip,
 	&m88e1510_hwmon_temp,
+	NULL
+};
+
+static const struct hwmon_channel_info *m88e1512_hwmon_info[] = {
+	&m88e1121_hwmon_chip,
+	&m88e1512_hwmon_temp,
 	NULL
 };
 
@@ -1891,9 +2132,20 @@ static const struct hwmon_ops m88e1510_hwmon_hwmon_ops = {
 	.write = m88e1510_hwmon_write,
 };
 
+static const struct hwmon_ops m88e1512_hwmon_hwmon_ops = {
+	.is_visible = m88e1512_hwmon_is_visible,
+	.read = m88e1512_hwmon_read,
+	.write = m88e1512_hwmon_write,
+};
+
 static const struct hwmon_chip_info m88e1510_hwmon_chip_info = {
 	.ops = &m88e1510_hwmon_hwmon_ops,
 	.info = m88e1510_hwmon_info,
+};
+
+static const struct hwmon_chip_info m88e1512_hwmon_chip_info = {
+	.ops = &m88e1512_hwmon_hwmon_ops,
+	.info = m88e1512_hwmon_info,
 };
 
 static int m88e6390_get_temp(struct phy_device *phydev, long *temp)
@@ -2060,6 +2312,11 @@ static int m88e1510_hwmon_probe(struct phy_device *phydev)
 	return marvell_hwmon_probe(phydev, &m88e1510_hwmon_chip_info);
 }
 
+static int m88e1512_hwmon_probe(struct phy_device *phydev)
+{
+	return marvell_hwmon_probe(phydev, &m88e1512_hwmon_chip_info);
+}
+
 static int m88e6390_hwmon_probe(struct phy_device *phydev)
 {
 	return marvell_hwmon_probe(phydev, &m88e6390_hwmon_chip_info);
@@ -2114,6 +2371,18 @@ static int m88e1510_probe(struct phy_device *phydev)
 		return err;
 
 	return m88e1510_hwmon_probe(phydev);
+}
+
+static int m88e1512_probe(struct phy_device *phydev)
+{
+	int err;
+
+	err = marvell_probe(phydev);
+	if (err)
+		return err;
+
+    //return m88e1510_hwmon_probe(phydev);
+	return m88e1512_hwmon_probe(phydev);
 }
 
 static int m88e6390_probe(struct phy_device *phydev)
@@ -2338,6 +2607,29 @@ static struct phy_driver marvell_drivers[] = {
 		.get_stats = marvell_get_stats,
 		.set_loopback = genphy_loopback,
 	},
+    {
+		.phy_id = MARVELL_PHY_ID_88E1512,
+		.phy_id_mask = MARVELL_PHY_ID_MASK,
+		.name = "Marvell 88E1512",
+		.features = PHY_GBIT_FIBRE_FEATURES,
+		.probe = &m88e1512_probe,
+		.config_init = &m88e1512_config_init,
+		.config_aneg = &m88e1512_config_aneg,
+		.read_status = &marvell_read_status,
+		.ack_interrupt = &marvell_ack_interrupt,
+		.config_intr = &marvell_config_intr,
+		.did_interrupt = &m88e1121_did_interrupt,
+		.get_wol = &m88e1318_get_wol,
+		.set_wol = &m88e1318_set_wol,
+		.resume = &marvell_resume,
+		.suspend = &marvell_suspend,
+		.read_page = marvell_read_page,
+		.write_page = marvell_write_page,
+		.get_sset_count = marvell_get_sset_count,
+		.get_strings = marvell_get_strings,
+		.get_stats = marvell_get_stats,
+		.set_loopback = genphy_loopback,
+    },
 	{
 		.phy_id = MARVELL_PHY_ID_88E1540,
 		.phy_id_mask = MARVELL_PHY_ID_MASK,
