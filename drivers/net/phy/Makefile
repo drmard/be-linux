@@ -96,4 +96,3 @@ obj-$(CONFIG_VITESSE_PHY)	+= vitesse.o
 obj-$(CONFIG_XILINX_GMII2RGMII) += xilinx_gmii2rgmii.o
 obj-$(CONFIG_BAIKAL_MDIO)       += mdio-be-gpio.o
 obj-$(CONFIG_88X2222_PHY)       += mv88x2222.o
-obj-$(CONFIG_88E1512_PHY)       += mv88e1512.o
