@@ -84,6 +84,11 @@ config ARCH_BITMAIN
 	help
 	  This enables support for the Bitmain SoC Family.
 
+config PLAT_RTT
+	bool "RTT Boards with BE SOCs"
+	help
+	  Enables support for RTT Boards with BE SOCs.
+
 config ARCH_BRCMSTB
 	bool "Broadcom Set-Top-Box SoCs"
 	select ARCH_HAS_RESET_CONTROLLER
