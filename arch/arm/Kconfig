@@ -742,6 +742,8 @@ source "arch/arm/mach-versatile/Kconfig"
 source "arch/arm/mach-vexpress/Kconfig"
 source "arch/arm/plat-versatile/Kconfig"
 
+source "arch/arm/plat-rtt/Kconfig"
+
 source "arch/arm/mach-vt8500/Kconfig"
 
 source "arch/arm/mach-zx/Kconfig"
@@ -803,6 +805,9 @@ config PLAT_PXA
 	bool
 
 config PLAT_VERSATILE
+	bool
+
+config PLAT_RTT
 	bool
 
 source "arch/arm/mm/Kconfig"
