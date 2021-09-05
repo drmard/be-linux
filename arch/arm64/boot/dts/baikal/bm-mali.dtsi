@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
+/*
+ * Device tree include file for BE-M1000 Mali GPU
+ * Copyright (C) 2018-2021 Baikal Electronics, JSC
+ */
 
 / {
 	soc {

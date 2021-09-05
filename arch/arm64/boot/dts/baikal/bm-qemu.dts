@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Baikal-M software emulator (QEMU) platform device tree
- *
+ * Device tree source for Baikal-M software emulator (QEMU) platform
+ * Copyright (C) 2018-2021 Baikal Electronics, JSC
  */
 
 /dts-v1/;
-
-#include <dt-bindings/interrupt-controller/arm-gic.h>
 
 #include "bm-soc.dtsi"
 
@@ -19,7 +17,6 @@
  */
 
 / {
-
 	model = "Baikal Electronics Baikal-M virtual platform";
 	compatible = "baikal,baikal-m";
 	#address-cells = <2>;
@@ -34,20 +31,18 @@
 
 	memory@80000000 {
 		device_type = "memory";
-		/* 2GB */
-		/*reg = <0x00000000 0x80000000 0x0 0x80000000>;*/
 		/* 16GB */
 		reg = <0x00000000 0x80000000 0x0 0x80000000
 		       0x00000008 0x80000000 0x1 0x80000000>;
 	};
 
-  /* XXX: Temporary fix for qemu to work */
-  /* Device is necessary for UEFI to boot on QEMU, need to replace it with something later */
-  flash@0 {
-    compatible = "cfi-flash";
-    reg = <0x0 0x4000000 0x0 0x4000000>;
-    bank-width = <0x4>;
-  };
+	/* XXX: Temporary fix for qemu to work */
+	/* Device is necessary for UEFI to boot on QEMU, need to replace it with something later */
+	flash@0 {
+		compatible = "cfi-flash";
+		reg = <0x0 0x4000000 0x0 0x4000000>;
+		bank-width = <0x4>;
+	};
 
 	panel: panel {
 		compatible = "auo,b133htn01";           /* 1920x1080 */
@@ -72,7 +67,6 @@
 			};
 		};
 	};*/
-
 };
 
 &vdu0 {
@@ -102,7 +96,6 @@
 &gmac1 {
 	status = "okay";
 };
-
 
 /*&i2c0 {
 	status = "okay";
@@ -163,7 +156,6 @@
 
 &spi0 {
 	num-cs = <6>;
-
 	status = "okay";
 
 	/* SPI flash chip #1 */

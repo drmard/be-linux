@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
+/*
+ * Device tree include file for BE-M1000 SoC CPU frequencies
+ * Copyright (C) 2020-2021 Baikal Electronics, JSC
+ */
 
 / {
 	cpufreq {
