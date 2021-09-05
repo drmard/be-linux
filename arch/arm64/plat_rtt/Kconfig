@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-2.0-only
+menuconfig PLAT_RTT
+	bool "UNA Boards with BE SOCs"
+	depends on ARCH_BAIKAL
+#==========
+# SPDX-License-Identifier: GPL-2.0-only
+#if PLAT_PXA
+
+#config PXA_SSP
+#	tristate
+#	help
+#	  Enable support for PXA2xx SSP ports
+
+#endif
+#==========
+
+if ARCH_BAIKAL
+if PLAT_RTT
+
+config UNA10
+	bool "UNA 1.0 board support"
+        depends on ARCH_BAIKAL
+        depends on PLAT_UNA
+	help
+	  Enable support for ARM-based UNA 1.0 board
+
+endif
+endif
