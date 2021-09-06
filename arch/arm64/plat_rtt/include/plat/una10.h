@@ -9,6 +9,10 @@
 #ifndef _LINUX_UNA10_H
 #define _LINUX_UNA10_H
 
+#define MACH_TYPE_UNA10       0x251
+
+#include "arch2.h"
+
 #define PCA9555_ADDR01          0x22
 #define PCA9555_ADDR02          0x26
 #define PCA9546_ADDR01          0x74

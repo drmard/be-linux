@@ -15,7 +15,12 @@
 #include <linux/platform_data/pca953x.h>
 #include <linux/platform_data/i2c-pxa.h>
 
-#include <plat/una10.h>
+//#include <asm/mach-types.h>
+//#include <asm/mach/arch.h>
+//#include <asm/setup.h>
+//#include <asm/system_info.h>
+
+#include "include/plat/una10.h"
 
 
 /* On board MBM1.0 we have such GPIO blocks 
@@ -136,7 +141,7 @@ static struct i2c_board_info una10_gpio_ext_info1[] = {
 
   [3] = {  
     I2C_BOARD_INFO("ab-rtcmc", AB_RTCMC_ADDR01),
-    .platform_data = &una10_abrtcmc_ext_pdata_1,          
+    .platform_data = &una10_abrtcmc_ext_pdata_1,
   },
 };
 
@@ -149,8 +154,7 @@ static struct i2c_board_info una10_gpio_ext_info2[] = {
 
 static void __init una10_init_i2c(void)
 {
-
-  pxa_set_i2c_info(NULL);
+  //pxa_set_i2c_info(NULL);
 
   i2c_register_board_info(1, una10_gpio_ext_info1, ARRAY_SIZE(una10_gpio_ext_info1));
   i2c_register_board_info(2, una10_gpio_ext_info2, ARRAY_SIZE(una10_gpio_ext_info2));
@@ -162,13 +166,13 @@ static inline void una10_init_i2c(void)
 }
 #endif
 
-static inline void una10_init_bl() {}
+//static inline void una10_init_bl() {}
  
 static void __init una10_init(void)
 {
   una10_init_leds();
   una10_init_i2c();
-  una10_init_bl();
+  //una10_init_bl();
 }
 
 MACHINE_START(UNA10, "UNA10 module")
