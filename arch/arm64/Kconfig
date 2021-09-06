@@ -1694,6 +1694,10 @@ source "drivers/acpi/Kconfig"
 
 source "arch/arm64/kvm/Kconfig"
 
+if ARCH_BAIKAL
+source "arch/arm64/plat_rtt/Kconfig"
+endif
+
 if CRYPTO
 source "arch/arm64/crypto/Kconfig"
 endif
