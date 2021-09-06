@@ -28,51 +28,6 @@ lrwxrwxrwx    1 root  root      0 Jan  1  1970 gpiochip56 -> ../../devices/platf
 If we do not have some another GPIO chips on UNA1.0 board ,we can set for it the gpio_base param for subsequent GPIO blocks,
 starting at a value of 88 = 56(gpio_base parameter for gpiochip56) + 32 or 56 in case when no GPIO units are connected
 to I2C bus with number 0.
-*/ 
-
-/**
-// For the leds-gpio driver
-struct gpio_led {
-	const char *name;
-	const char *default_trigger;
-	unsigned 	gpio;
-	unsigned	active_low : 1;
-	unsigned	retain_state_suspended : 1;
-	unsigned	panic_indicator : 1;
-	unsigned	default_state : 2;
-	unsigned	retain_state_shutdown : 1;
-	// default_state should be one of LEDS_GPIO_DEFSTATE_(ON|OFF|KEEP)
-	struct gpio_desc *gpiod;
-};
-
-
-
-#if defined(CONFIG_LEDS_GPIO) || defined(CONFIG_LEDS_GPIO_MODULE)
-static struct gpio_led cm_x300_leds[] = {
-	[0] = {
-		.name = "cm-x300:green",
-		.default_trigger = "heartbeat",
-		.active_low = 1,
-	},
-};
-
---------
-struct gpio_led income_gpio_leds[] = {
-	{
-		.name			= "income:green:leda",
-		.default_trigger	= "none",
-		.gpio			= GPIO54_INCOME_LED_A,
-		.active_low		= 1,
-	},
-	{
-		.name			= "income:green:ledb",
-		.default_trigger	= "none",
-		.gpio			= GPIO55_INCOME_LED_B,
-		.active_low		= 1,
-	}
-};
---------
-
 */
 
 /******************************************************************************
@@ -215,29 +170,6 @@ static void __init una10_init(void)
   una10_init_i2c();
   una10_init_bl();
 }
-/*
-static void __init cm_x300_init(void){
-  cm_x300_init_mfp();
-  pxa_set_btuart_info(NULL);
-  pxa_set_stuart_info(NULL);
-  if (cpu_is_pxa300())
-    pxa_set_ffuart_info(NULL);
-  cm_x300_init_da9030();
-  cm_x300_init_dm9000();
-	cm_x300_init_lcd();
-	cm_x300_init_u2d();
-	cm_x300_init_ohci();
-	cm_x300_init_mmc();
-	cm_x300_init_nand();
-	cm_x300_init_leds();
-	cm_x300_init_i2c();
-	cm_x300_init_spi();
-	cm_x300_init_rtc();
-	cm_x300_init_ac97();
-	cm_x300_init_wi2wi();
-	cm_x300_init_bl();
-	regulator_has_full_constraints();
-}*/
 
 MACHINE_START(UNA10, "UNA10 module")
 	//.atag_offset	= 0x100,
