@@ -30,6 +30,112 @@ starting at a value of 88 = 56(gpio_base parameter for gpiochip56) + 32 or 56 in
 to I2C bus with number 0.
 */ 
 
+/**
+// For the leds-gpio driver
+struct gpio_led {
+	const char *name;
+	const char *default_trigger;
+	unsigned 	gpio;
+	unsigned	active_low : 1;
+	unsigned	retain_state_suspended : 1;
+	unsigned	panic_indicator : 1;
+	unsigned	default_state : 2;
+	unsigned	retain_state_shutdown : 1;
+	// default_state should be one of LEDS_GPIO_DEFSTATE_(ON|OFF|KEEP)
+	struct gpio_desc *gpiod;
+};
+
+
+
+#if defined(CONFIG_LEDS_GPIO) || defined(CONFIG_LEDS_GPIO_MODULE)
+static struct gpio_led cm_x300_leds[] = {
+	[0] = {
+		.name = "cm-x300:green",
+		.default_trigger = "heartbeat",
+		.active_low = 1,
+	},
+};
+
+--------
+struct gpio_led income_gpio_leds[] = {
+	{
+		.name			= "income:green:leda",
+		.default_trigger	= "none",
+		.gpio			= GPIO54_INCOME_LED_A,
+		.active_low		= 1,
+	},
+	{
+		.name			= "income:green:ledb",
+		.default_trigger	= "none",
+		.gpio			= GPIO55_INCOME_LED_B,
+		.active_low		= 1,
+	}
+};
+--------
+
+*/
+
+/******************************************************************************
+ * LED
+ ******************************************************************************/
+#if defined(CONFIG_LEDS_GPIO) || defined(CONFIG_LEDS_GPIO_MODULE)
+static struct gpio_led una10_leds[] = {
+  {
+    .name               = "status:red",
+    .default_trigger    = "none",
+    .gpio               = 0,
+    .active_low         = 1,
+  },
+  {
+    .name               = "status:green",
+    .default_trigger    = "none",
+    .gpio               = 1,
+    .active_low         = 1,
+  },
+  {
+    .name               = "status:yellow",
+    .default_trigger    = "none",
+    .gpio               = 2,
+    .active_low         = 1,
+  },
+  { 
+    .name               = "1G-combo:port_selector_1",
+    .default_trigger    = "heartbeat",
+    .gpio               = 15,
+    .active_low         = 1,
+  },
+  { 
+    .name               = "1G-combo:port_selector_2",
+    .default_trigger    = "heartbeat",
+    .gpio               = 16,
+    .active_low         = 1,
+  },
+};
+
+static struct gpio_led_platform_data una10_gpio_led_pdata = {
+  .num_leds = ARRAY_SIZE(una10_leds),
+  .leds = una10_leds,
+};
+
+static struct platform_device una10_led_device = {
+	.name		= "una10-leds-gpio",
+	.id		= -1,
+	.dev		= {
+	  .platform_data = &una10_gpio_led_pdata,
+	},
+};
+static void __init una10_init_leds(void) {
+	//if (system_rev < 130) cm_x300_leds[0].gpio = 79;
+	//else cm_x300_leds[0].gpio = 76;
+	platform_device_register(&una10_led_device);
+}
+
+#else
+
+static inline void una10_init_leds(void) {}
+
+#endif
+
 #if defined(CONFIG_I2C) || defined(CONFIG_I2C_MODULE)
 
 static struct pca953x_platform_data una10_gpio_ext_pdata_0 = {
@@ -100,19 +206,6 @@ static inline void una10_init_i2c(void)
 {
 }
 #endif
-/*
-static void __init cm_x300_init_i2c(void)
-{
-  pxa_set_i2c_info(NULL);
-  i2c_register_board_info(0,cm_x300_gpio_ext_info,ARRAY_SIZE(cm_x300_gpio_ext_info));
-}
-#else
-static inline void cm_x300_init_i2c(void)
-{
-}
-#endif
-*/
-static inline void una10_init_leds() {}
 
 static inline void una10_init_bl() {}
  
@@ -120,7 +213,6 @@ static void __init una10_init(void)
 {
   una10_init_leds();
   una10_init_i2c();
-
   una10_init_bl();
 }
 /*
