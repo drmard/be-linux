@@ -536,7 +536,6 @@ static int baikal_pcie_add_pcie_port(struct baikal_pcie_rc *rc,
 	}
 
 	pp->ops = &baikal_pcie_host_ops;
-	pp->root_bus_nr = -1;
 
 	ret = dw_pcie_host_init(pp);
 	if (ret) {

@@ -6,12 +6,11 @@
 
 /dts-v1/;
 
-#include <dt-bindings/sound/tlv320aic31xx-micbias.h>
-#include "bm-soc.dtsi"
-#include "bm-mali.dtsi"
+#include <dt-bindings/input/input.h>
+#include "bm1000.dtsi"
 
 / {
-	model = "Baikal Electronics Baikal-M evaluation board";
+	model = "Baikal Electronics DBM";
 	compatible = "baikal,baikal-m";
 	#address-cells = <2>;
 	#size-cells = <2>;
@@ -24,7 +23,7 @@
 		height-mm = <125>;
 		data-mapping = "vesa-24";
 		panel-timing {
-			// 1920x1080 @60Hz
+			/* 1920x1080 @ 60 Hz */
 			clock-frequency = <148500000>;
 			hactive = <1920>;
 			vactive = <1080>;
@@ -42,6 +41,29 @@
 			panel0_lvds1: endpoint@1 {
 				remote-endpoint = <&vdu_lvds1_pads>;
 			};
+		};
+	};
+
+	buttons-backlight {
+		compatible = "gpio-keys";
+		autorepeat;
+		button-brightness-down {
+			label = "Brightness Down Button";
+			linux,code = <KEY_BRIGHTNESSDOWN>;
+			gpios = <&porta 18 GPIO_ACTIVE_LOW>;
+			debounce-interval = <50>;
+		};
+		button-brightness-up {
+			label = "Brightness Up Button";
+			linux,code = <KEY_BRIGHTNESSUP>;
+			gpios = <&porta 17 GPIO_ACTIVE_LOW>;
+			debounce-interval = <50>;
+		};
+		button-brightness-toggle {
+			label = "Brightness Toggle Button";
+			linux,code = <KEY_BRIGHTNESS_TOGGLE>;
+			gpios = <&porta 31 GPIO_ACTIVE_LOW>;
+			debounce-interval = <50>;
 		};
 	};
 
@@ -89,6 +111,10 @@
 	system-coherency = <0>;
 };
 
+&hda {
+	status = "okay";
+};
+
 &hdmi {
 	status = "okay";
 };
@@ -100,9 +126,10 @@
 		#sound-dai-cells = <0>;
 		compatible = "ti,tlv320aic3x";
 		reg = <0x18>;
-		gpio-reset = <&porta 4 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&porta 4 GPIO_ACTIVE_LOW>;
 		status = "okay";
-		ai31xx-micbias-vg = <MICBIAS_2_0V>;
+		ai3x-micbias-vg = <1>;
+		ai3x-ocmv = <1>;
 	};
 
 	rtc@56 {
@@ -123,6 +150,17 @@
 
 &mmc0 {
 	status = "okay";
+#if 0
+	/* emmc */
+	non-removable;
+	bus-width = <8>;
+	max-clock = <200000000>;
+#else
+	/* sd */
+	disable-wp;
+	bus-width = <4>;
+	max-clock = <25000000>;
+#endif
 };
 
 &pcie0 {
@@ -196,18 +234,18 @@
 		status = "okay";
 
 		/* Flash chip0 partitions */
-		mtd0@00000000 {
+		mtd0@0 {
 			label = "bl1";
 			reg = <0x00000000 0x00040000>;
 			read-only;
 		};
 
-		mtd1@00040000 {
+		mtd1@40000 {
 			label = "fip";
 			reg = <0x00040000 0x007c0000>;
 		};
 
-		mtd2@00800000 {
+		mtd2@800000 {
 			label = "rescue";
 			reg = <0x00800000 0x01800000>;
 		};
@@ -235,19 +273,19 @@
 		status = "okay";
 
 		/* Flash chip1 partitions */
-		mtd0@00000000 {
+		mtd0@0 {
 			label = "fip_backup";
 			reg = <0x00000000 0x00400000>;
 			read-only;
 		};
 
-		mtd1@00400000 {
+		mtd1@400000 {
 			label = "env_backup";
 			reg = <0x00400000 0x00100000>;
 			read-only;
 		};
 
-		mtd2@00500000 {
+		mtd2@500000 {
 			label = "data1";
 			reg = <0x00500000 0x01b00000>;
 		};
@@ -293,6 +331,13 @@
 
 &vdu0 {
 	status = "okay";
+	enable-gpios = <&porta 16 GPIO_ACTIVE_LOW>;
+	backlight {
+		min-brightness-level = <10>;
+		default-brightness-level = <60>;
+		brightness-level-step = <2>;
+		pwm-frequency = <20000>;
+	};
 	port {
 		vdu_lvds0_pads: endpoint@0 {
 			remote-endpoint = <&panel0_lvds0>;

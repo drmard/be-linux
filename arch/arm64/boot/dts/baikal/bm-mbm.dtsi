@@ -4,16 +4,23 @@
  * Copyright (C) 2021 Baikal Electronics, JSC
  */
 
-#include "bm-soc.dtsi"
-#include "bm-mali.dtsi"
+#include "bm1000.dtsi"
 
 / {
-	model = "Baikal Electronics Baikal-M mitx board";
+	model = "Baikal Electronics MBM";
 	compatible = "baikal,baikal-m";
 	#address-cells = <2>;
 	#size-cells = <2>;
 
 	chosen { };
+
+	leds {
+		compatible = "gpio-leds";
+		led0 {
+			gpios = <&porta 8 GPIO_ACTIVE_HIGH>;
+			default-state = "keep";
+		};
+	};
 
 	sound {
 		compatible = "simple-audio-card";
@@ -122,6 +129,9 @@
 
 &mmc0 {
 	status = "okay";
+	disable-wp;
+	bus-width = <4>;
+	max-clock = <25000000>;
 };
 
 &pcie0 {
@@ -143,7 +153,7 @@
 		gpio-hog;
 		gpios = <1 GPIO_ACTIVE_LOW>;
 		output-high;
-		line_name = "pcie-x8-clock";
+		line-name = "pcie-x8-clock";
 	};
 };
 

@@ -26,9 +26,6 @@
 #include <sound/dmaengine_pcm.h>
 #include "local.h"
 
-#define MASTER_CLK 12000000
-static uint32_t freq;
-
 static inline void i2s_write_reg(void __iomem *io_base, int reg, u32 val)
 {
 	writel(val, io_base + reg);
@@ -103,6 +100,7 @@ static inline void i2s_enable_irqs(struct dw_i2s_dev *dev, u32 stream,
 
 static irqreturn_t i2s_irq_handler(int irq, void *dev_id)
 {
+	static int rxor_count;
 	struct dw_i2s_dev *dev = dev_id;
 	bool irq_valid = false;
 	u32 isr[4];
@@ -141,7 +139,9 @@ static irqreturn_t i2s_irq_handler(int irq, void *dev_id)
 
 		/* Error Handling: TX */
 		if (isr[i] & ISR_RXFO) {
-			dev_err(dev->dev, "RX overrun (ch_id=%d)\n", i);
+			if ((rxor_count % 1000) == 0)
+				dev_err(dev->dev, "RX overrun (ch_id=%d)\n", i);
+			rxor_count++;
 			irq_valid = true;
 		}
 	}
@@ -191,8 +191,6 @@ static int dw_i2s_startup(struct snd_pcm_substream *substream,
 {
 	struct dw_i2s_dev *dev = snd_soc_dai_get_drvdata(cpu_dai);
 	union dw_i2s_snd_dma_data *dma_data = NULL;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 
 
 	if (!(dev->capability & DWC_I2S_RECORD) &&
@@ -209,8 +207,6 @@ static int dw_i2s_startup(struct snd_pcm_substream *substream,
 		dma_data = &dev->capture_dma_data;
 
 	snd_soc_dai_set_dma_data(cpu_dai, substream, (void *)dma_data);
-	snd_soc_dai_set_sysclk(codec_dai, 0,
-                             freq, SND_SOC_CLOCK_IN);
 
 
 	return 0;
@@ -620,32 +616,6 @@ static int dw_configure_dai_by_dt(struct dw_i2s_dev *dev,
 
 }
 
-static int dw_i2s_dai_probe(struct snd_soc_dai *dai)
-{
-        struct dw_i2s_dev *dev = snd_soc_dai_get_drvdata(dai);
-        struct snd_dmaengine_dai_dma_data *playback_dma_data;
-        struct snd_dmaengine_dai_dma_data *capture_dma_data;
-
-        playback_dma_data = devm_kzalloc(dai->dev,
-                                         sizeof(*playback_dma_data),
-                                         GFP_KERNEL);
-        if (!playback_dma_data)
-                return -ENOMEM;
-
-        capture_dma_data = devm_kzalloc(dai->dev,
-                                        sizeof(*capture_dma_data),
-                                        GFP_KERNEL);
-        if (!capture_dma_data)
-                return -ENOMEM;
-
-        playback_dma_data->addr = dev->play_dma_data.pd.addr;
-        capture_dma_data->addr = dev->capture_dma_data.pd.addr;
-
-        playback_dma_data->maxburst = dev->play_dma_data.pd.max_burst;
-        capture_dma_data->maxburst = dev->capture_dma_data.pd.max_burst;
-
-        return 0;
-}
 
 static int dw_i2s_probe(struct platform_device *pdev)
 {
@@ -655,8 +625,6 @@ static int dw_i2s_probe(struct platform_device *pdev)
 	int ret, irq, irq_num;
 	struct snd_soc_dai_driver *dw_i2s_dai;
 	const char *clk_id;
-	struct device_node *np = pdev->dev.of_node;
-	uint32_t val;
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
 	if (!dev)
@@ -669,7 +637,6 @@ static int dw_i2s_probe(struct platform_device *pdev)
 	dw_i2s_dai->ops = &dw_i2s_dai_ops;
 	dw_i2s_dai->suspend = dw_i2s_suspend;
 	dw_i2s_dai->resume = dw_i2s_resume;
-	dw_i2s_dai->probe = &dw_i2s_dai_probe;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dev->i2s_base = devm_ioremap_resource(&pdev->dev, res);
@@ -679,7 +646,9 @@ static int dw_i2s_probe(struct platform_device *pdev)
 	dev->dev = &pdev->dev;
         irq_num = platform_irq_count(pdev);
 
-        if (!irq_num)
+        if (irq_num < 0) /* -EPROBE_DEFER */
+		return irq_num;
+	else if (!irq_num)
                 dev_err(&pdev->dev, "No irq found on device\n");
 
         do {
@@ -757,10 +726,6 @@ static int dw_i2s_probe(struct platform_device *pdev)
 	}
 
 	pm_runtime_enable(&pdev->dev);
-        if (!of_property_read_u32(np, "system-clock-frequency", &val))
-                freq = val;
-        else
-                freq = MASTER_CLK;
 	
 	return 0;
 
