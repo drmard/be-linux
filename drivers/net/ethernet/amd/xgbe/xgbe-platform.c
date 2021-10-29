@@ -298,6 +298,9 @@ static struct xgbe_version_data *xgbe_get_vdata(struct xgbe_prv_data *pdata)
 
 static int xgbe_platform_probe(struct platform_device *pdev)
 {
+
+
+printk(KERN_INFO "%s    start\n",__func__);
 	struct xgbe_prv_data *pdata;
 	struct device *dev = &pdev->dev;
 	struct platform_device *phy_pdev;
@@ -534,10 +537,13 @@ static int xgbe_platform_probe(struct platform_device *pdev)
 		goto err_io;
 
 	netdev_notice(pdata->netdev, "net device enabled\n");
-
+	
+printk (KERN_INFO "%s    returned - SUCCESS \n",__func__);
 	return 0;
 
 err_io:
+
+	printk (KERN_INFO  "%s    err_io:  ret == %d\n",__func__,ret);
 	platform_device_put(phy_pdev);
 
 err_phydev:
