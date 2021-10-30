@@ -168,7 +168,7 @@ static void xgbe_default_config(struct xgbe_prv_data *pdata)
 }
 
 static void xgbe_init_all_fptrs(struct xgbe_prv_data *pdata)
-{
+{printk (KERN_INFO "%s       -start    \n", __func__);
 	xgbe_init_function_ptrs_dev(&pdata->hw_if);
 	xgbe_init_function_ptrs_phy(&pdata->phy_if);
 	xgbe_init_function_ptrs_i2c(&pdata->i2c_if);
@@ -270,6 +270,10 @@ void xgbe_set_counts(struct xgbe_prv_data *pdata)
 
 int xgbe_config_netdev(struct xgbe_prv_data *pdata)
 {
+printk (KERN_INFO "%s   start        \n",__func__);
+
+
+
 	struct net_device *netdev = pdata->netdev;
 	struct device *dev = pdata->dev;
 	int ret;
@@ -290,6 +294,7 @@ int xgbe_config_netdev(struct xgbe_prv_data *pdata)
 	ret = pdata->hw_if.exit(pdata);
 	if (ret) {
 		dev_err(dev, "software reset failed\n");
+printk (KERN_INFO "%s    error:  ret == %d\n",__func__,ret);
 		return ret;
 	}
 
@@ -353,8 +358,12 @@ int xgbe_config_netdev(struct xgbe_prv_data *pdata)
 	/* Call MDIO/PHY initialization routine */
 	pdata->debugfs_an_cdr_workaround = pdata->vdata->an_cdr_workaround;
 	ret = pdata->phy_if.phy_init(pdata);
-	if (ret)
+	if (ret) { 
+
+printk (KERN_INFO "%s  err:  ret == %d\n",__func__,ret);
+
 		return ret;
+        }
 
 	/* Set device operations */
 	netdev->netdev_ops = xgbe_get_netdev_ops();
@@ -436,11 +445,17 @@ int xgbe_config_netdev(struct xgbe_prv_data *pdata)
 	netif_dbg(pdata, drv, pdata->netdev, "%u Rx software queues\n",
 		  pdata->rx_ring_count);
 
+
+
+printk (KERN_INFO "%s   returned: 0 \n",__func__);
 	return 0;
 }
 
 void xgbe_deconfig_netdev(struct xgbe_prv_data *pdata)
 {
+printk (KERN_INFO "%s    -start\n",__func__);
+
+
 	struct net_device *netdev = pdata->netdev;
 
 	xgbe_debugfs_exit(pdata);
@@ -483,13 +498,24 @@ static int __init xgbe_mod_init(void)
 {
 	int ret;
 
-	ret = register_netdevice_notifier(&xgbe_netdev_notifier);
-	if (ret)
-		return ret;
+printk  (KERN_INFO "%s  start\n",__func__);
+	//int ret;
 
+	ret = register_netdevice_notifier(&xgbe_netdev_notifier);
+	if (ret) {
+
+
+printk  (KERN_INFO "%s register_netdevice_notifier()  returned err: %d \n",__func__,ret);
+		return ret;
+        }
 	ret = xgbe_platform_init();
-	if (ret)
+	if (ret)  {  printk (KERN_INFO  "%s xgbe_platform_init() returned err: %d \n",__func__,ret);
+
+
+
 		goto err_platform_init;
+   
+   }
 
 	ret = xgbe_pci_init();
 	if (ret)
