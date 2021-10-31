@@ -957,7 +957,7 @@
 			local-mac-address = [ 00 20 13 ba 1c a1 ];
 			be,pcs-mode = "KX4";
 			ext-phy-handle = <&mv_ch0>;
-			status = "disabled";
+			status = "okay";
 			amd,per-channel-interrupt;
 			amd,speed-set = <0>;
 			#stream-id-cells = <16>;
@@ -994,7 +994,7 @@
 			local-mac-address = [ 00 20 13 ba 1c a2 ];
 			be,pcs-mode = "KX4";
 			ext-phy-handle = <&mv_ch2>;
-			status = "disabled";
+			status = "okay";
 			amd,per-channel-interrupt;
 			amd,speed-set = <0>;
 			#stream-id-cells = <16>;
