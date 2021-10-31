@@ -722,12 +722,19 @@ static struct platform_driver xgbe_driver = {
 
 int xgbe_platform_init(void)
 {
+	int ret;
 
 	printk (KERN_INFO "====%s   -start \n",__func__);
 
+    ret = platform_driver_register(&xgbe_driver);
+
 
 	
-	return platform_driver_register(&xgbe_driver);
+	printk(KERN_INFO "====%s returned %d\n",__func__,ret);
+
+
+	
+	return ret;  //platform_driver_register(&xgbe_driver);
 }
 
 void xgbe_platform_exit(void)
