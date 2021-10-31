@@ -485,13 +485,30 @@ void xgbe_deconfig_netdev(struct xgbe_prv_data *pdata)
 }
 
 static int xgbe_netdev_event(struct notifier_block *nb, unsigned long event,
-			     void *data)
+			     void *data)	
 {
 
-printk (KERN_INFO "==%s  -start \n",__func__);
+
+
+    //printk (KERN_INFO "==%s  -start \n",__func__);
+	printk (KERN_INFO "==%s  event == %lu\n",__func__,event);
 
 	struct net_device *netdev = netdev_notifier_info_to_dev(data);
 	struct xgbe_prv_data *pdata = netdev_priv(netdev);
+
+
+
+if (!pdata)  printk (KERN_INFO "==%s   pdata == NULL\n",__func__);
+else {
+	if (!pdata->phydev)
+        printk(KERN_INFO "==%s  pdata->phydev == NULL\n",__func__);
+	else
+		printk (KERN_INFO "==%s pdata->phydev != NULL\n",__func__);
+
+
+
+}
+
 
 	if (netdev->netdev_ops != xgbe_get_netdev_ops())
 		goto out;
