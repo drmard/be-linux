@@ -17,6 +17,8 @@
  * Implementation of the connector functions for Baikal Electronics
  * BE-M1000 SoC's VDU
  */
+#include <linux/module.h>
+#include <linux/kernel.h>
 
 #include <linux/clk.h>
 #include <linux/input.h>
