@@ -756,7 +756,10 @@ static struct platform_driver am79c961_driver = {
 };
 
 static int __init am79c961_init(void)
-{
+{printk (KERN_INFO "==%s   start\n",__func__);
+
+
+
 	return platform_driver_register(&am79c961_driver);
 }
 

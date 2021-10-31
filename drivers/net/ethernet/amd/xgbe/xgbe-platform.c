@@ -189,15 +189,35 @@ static const struct of_device_id xgbe_of_match[];
 
 static struct xgbe_version_data *xgbe_of_vdata(struct xgbe_prv_data *pdata)
 {
+
+	printk  (KERN_INFO  "==%s   -start \n",__func__);
+
+
+	
+
+
 	const struct of_device_id *id;
 
 	id = of_match_device(xgbe_of_match, pdata->dev);
 
+
+	
+	if(!id){
+		printk(KERN_INFO "==%s  returned NULL\n",__func__);
+	}
+
+
+
+	
 	return id ? (struct xgbe_version_data *)id->data : NULL;
 }
 
 static int xgbe_of_support(struct xgbe_prv_data *pdata)
 {
+	printk  (KERN_INFO  "==%s  -start \n",__func__);
+
+
+
 	struct device *dev = pdata->dev;
 
 	/* Obtain the system clock setting */
@@ -219,8 +239,15 @@ static int xgbe_of_support(struct xgbe_prv_data *pdata)
 	return 0;
 }
 
-static struct platform_device *xgbe_of_get_phy_pdev(struct xgbe_prv_data *pdata)
+static struct platform_device *xgbe_of_get_phy_pdev(
+	struct xgbe_prv_data *pdata)
 {
+
+	printk  (KERN_INFO  "==%s  -start \n",__func__);
+
+
+
+
 	struct device *dev = pdata->dev;
 	struct device_node *phy_node;
 	struct platform_device *phy_pdev;
@@ -278,6 +305,10 @@ static unsigned int xgbe_resource_count(struct platform_device *pdev,
 
 static struct platform_device *xgbe_get_phy_pdev(struct xgbe_prv_data *pdata)
 {
+	printk  (KERN_INFO  "==%s  -start \n",__func__);
+
+
+
 	struct platform_device *phy_pdev;
 
 	if (pdata->use_acpi) {
@@ -292,6 +323,9 @@ static struct platform_device *xgbe_get_phy_pdev(struct xgbe_prv_data *pdata)
 
 static struct xgbe_version_data *xgbe_get_vdata(struct xgbe_prv_data *pdata)
 {
+	printk (KERN_INFO  "==%s  -start \n",__func__);
+
+
 	return pdata->use_acpi ? xgbe_acpi_vdata(pdata)
 			       : xgbe_of_vdata(pdata);
 }
@@ -300,7 +334,11 @@ static int xgbe_platform_probe(struct platform_device *pdev)
 {
 
 
-printk(KERN_INFO "%s    start\n",__func__);
+	printk(KERN_INFO "%s    start\n",__func__);
+
+
+
+
 	struct xgbe_prv_data *pdata;
 	struct device *dev = &pdev->dev;
 	struct platform_device *phy_pdev;
@@ -557,6 +595,12 @@ err_alloc:
 
 static int xgbe_platform_remove(struct platform_device *pdev)
 {
+
+	printk (KERN_INFO  "==%s  -start \n",__func__);
+
+
+
+
 	struct xgbe_prv_data *pdata = platform_get_drvdata(pdev);
 
 	xgbe_deconfig_netdev(pdata);
@@ -591,6 +635,11 @@ static int xgbe_platform_suspend(struct device *dev)
 
 static int xgbe_platform_resume(struct device *dev)
 {
+
+
+	printk (KERN_INFO "==%s   -start \n",__func__);
+
+	
 	struct xgbe_prv_data *pdata = dev_get_drvdata(dev);
 	struct net_device *netdev = pdata->netdev;
 	int ret = 0;
@@ -611,6 +660,12 @@ static int xgbe_platform_resume(struct device *dev)
 
 	DBGPR("<--xgbe_resume\n");
 
+	
+	printk (KERN_INFO "====%s   -returned  %d\n",__func__,ret);
+
+
+
+	
 	return ret;
 }
 #endif /* CONFIG_PM_SLEEP */
@@ -667,10 +722,18 @@ static struct platform_driver xgbe_driver = {
 
 int xgbe_platform_init(void)
 {
+
+	printk (KERN_INFO "====%s   -start \n",__func__);
+
+
+	
 	return platform_driver_register(&xgbe_driver);
 }
 
 void xgbe_platform_exit(void)
 {
+	printk (KERN_INFO "====%s   -start \n",__func__);
+
+
 	platform_driver_unregister(&xgbe_driver);
 }

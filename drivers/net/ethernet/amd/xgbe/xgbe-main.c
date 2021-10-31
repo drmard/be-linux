@@ -146,6 +146,7 @@ static void xgbe_default_config(struct xgbe_prv_data *pdata)
 
 	pdata->blen = DMA_SBMR_BLEN_64;
 #ifdef CONFIG_BAIKAL_XGBE
+	printk  (KERN_INFO  "====%s pdata->pbl --under CONFIG_BAIKAL_XGBE\n",__func__);
 	pdata->pbl = DMA_PBL_16;
 #else
 	pdata->pbl = DMA_PBL_256;
@@ -168,7 +169,11 @@ static void xgbe_default_config(struct xgbe_prv_data *pdata)
 }
 
 static void xgbe_init_all_fptrs(struct xgbe_prv_data *pdata)
-{printk (KERN_INFO "%s       -start    \n", __func__);
+{
+	printk (KERN_INFO "%s       -start    \n", __func__);
+
+
+
 	xgbe_init_function_ptrs_dev(&pdata->hw_if);
 	xgbe_init_function_ptrs_phy(&pdata->phy_if);
 	xgbe_init_function_ptrs_i2c(&pdata->i2c_if);
@@ -270,7 +275,11 @@ void xgbe_set_counts(struct xgbe_prv_data *pdata)
 
 int xgbe_config_netdev(struct xgbe_prv_data *pdata)
 {
-printk (KERN_INFO "%s   start        \n",__func__);
+
+
+	printk (KERN_INFO "%s   start        \n",__func__);
+
+
 
 
 
@@ -294,7 +303,10 @@ printk (KERN_INFO "%s   start        \n",__func__);
 	ret = pdata->hw_if.exit(pdata);
 	if (ret) {
 		dev_err(dev, "software reset failed\n");
-printk (KERN_INFO "%s    error:  ret == %d\n",__func__,ret);
+
+
+
+		printk (KERN_INFO "%s    error:  ret == %d\n",__func__,ret);
 		return ret;
 	}
 
@@ -360,7 +372,9 @@ printk (KERN_INFO "%s    error:  ret == %d\n",__func__,ret);
 	ret = pdata->phy_if.phy_init(pdata);
 	if (ret) { 
 
-printk (KERN_INFO "%s  err:  ret == %d\n",__func__,ret);
+		printk (KERN_INFO "%s  err:  ret == %d\n",__func__,ret);
+
+
 
 		return ret;
         }
@@ -447,13 +461,15 @@ printk (KERN_INFO "%s  err:  ret == %d\n",__func__,ret);
 
 
 
-printk (KERN_INFO "%s   returned: 0 \n",__func__);
+	printk (KERN_INFO "%s   returned: 0 \n",__func__);
 	return 0;
 }
 
 void xgbe_deconfig_netdev(struct xgbe_prv_data *pdata)
 {
-printk (KERN_INFO "%s    -start\n",__func__);
+	printk (KERN_INFO "%s    -start\n",__func__);
+
+
 
 
 	struct net_device *netdev = pdata->netdev;
@@ -471,6 +487,9 @@ printk (KERN_INFO "%s    -start\n",__func__);
 static int xgbe_netdev_event(struct notifier_block *nb, unsigned long event,
 			     void *data)
 {
+
+printk (KERN_INFO "==%s  -start \n",__func__);
+
 	struct net_device *netdev = netdev_notifier_info_to_dev(data);
 	struct xgbe_prv_data *pdata = netdev_priv(netdev);
 
@@ -498,40 +517,55 @@ static int __init xgbe_mod_init(void)
 {
 	int ret;
 
-printk  (KERN_INFO "%s  start\n",__func__);
+	printk  (KERN_INFO "%s  start\n",__func__);
 	//int ret;
-
 	ret = register_netdevice_notifier(&xgbe_netdev_notifier);
 	if (ret) {
 
 
-printk  (KERN_INFO "%s register_netdevice_notifier()  returned err: %d \n",__func__,ret);
+		printk  (KERN_INFO "%s register_netdevice_notifier()  returned err: %d \n",__func__,ret);
 		return ret;
         }
 	ret = xgbe_platform_init();
-	if (ret)  {  printk (KERN_INFO  "%s xgbe_platform_init() returned err: %d \n",__func__,ret);
+	if (ret)  {  
+		printk (KERN_INFO  "%s xgbe_platform_init() returned err: %d \n",__func__,ret);
 
 
 
 		goto err_platform_init;
-   
-   }
+	}
 
 	ret = xgbe_pci_init();
-	if (ret)
-		goto err_pci_init;
+	if (ret) {
+		printk(KERN_INFO "====%s  err:  xgbe_pci_init() returned %d\n",__func__,ret);
 
+
+
+		goto err_pci_init;
+	}
+
+
+
+    printk  (KERN_INFO  "==%s  returned 0\n",__func__);
+
+	
 	return 0;
 
 err_pci_init:
 	xgbe_platform_exit();
 err_platform_init:
 	unregister_netdevice_notifier(&xgbe_netdev_notifier);
+
+
+
+	printk  (KERN_INFO  "==%s  returned %d\n",__func__,ret);
 	return ret;
 }
 
 static void __exit xgbe_mod_exit(void)
 {
+
+	printk  (KERN_INFO  "==%s    start\n",__func__);
 	xgbe_pci_exit();
 
 	xgbe_platform_exit();

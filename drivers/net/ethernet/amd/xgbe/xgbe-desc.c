@@ -187,6 +187,13 @@ static void xgbe_free_ring_resources(struct xgbe_prv_data *pdata)
 
 static void *xgbe_alloc_node(size_t size, int node)
 {
+
+
+
+
+	printk  (KERN_INFO  "==%s  -start \n",__func__);
+
+	
 	void *mem;
 
 	mem = kzalloc_node(size, GFP_KERNEL, node);

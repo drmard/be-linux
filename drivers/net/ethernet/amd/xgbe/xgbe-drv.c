@@ -1377,6 +1377,12 @@ int xgbe_powerdown(struct net_device *netdev, unsigned int caller)
 
 int xgbe_powerup(struct net_device *netdev, unsigned int caller)
 {
+	printk  (KERN_INFO  "==%s  -start \n",__func__);
+
+
+
+
+
 	struct xgbe_prv_data *pdata = netdev_priv(netdev);
 	struct xgbe_hw_if *hw_if = &pdata->hw_if;
 	unsigned long flags;
@@ -1426,6 +1432,12 @@ static void xgbe_free_memory(struct xgbe_prv_data *pdata)
 
 static int xgbe_alloc_memory(struct xgbe_prv_data *pdata)
 {
+
+
+	printk  (KERN_INFO  "==%s  -start \n",__func__);
+
+
+	
 	struct xgbe_desc_if *desc_if = &pdata->desc_if;
 	struct net_device *netdev = pdata->netdev;
 	int ret;
@@ -1467,6 +1479,11 @@ err_channels:
 
 static int xgbe_start(struct xgbe_prv_data *pdata)
 {
+
+
+	printk  (KERN_INFO  "==%s  -start \n",__func__);
+
+
 	struct xgbe_hw_if *hw_if = &pdata->hw_if;
 	struct xgbe_phy_if *phy_if = &pdata->phy_if;
 	struct net_device *netdev = pdata->netdev;
