@@ -533,12 +533,8 @@ static struct platform_driver be_mdio_driver = {
 
 module_platform_driver(be_mdio_driver);
 
-
-
-
 MODULE_ALIAS("platform:be-mdio");
 MODULE_AUTHOR("Dmitry Dunaev");
-//MODULE_LICENSE("Proprinetary");
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("Proprinetary");
 MODULE_VERSION(DRIVER_VERSION);
 MODULE_DESCRIPTION(DRIVER_NAME);
