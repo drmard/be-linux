@@ -432,7 +432,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			interrupts = <GIC_SPI 99 IRQ_TYPE_LEVEL_HIGH>;
-			status = "disabled";
+			status = "okay";
 
 			porta: gpio-controller@0 {
 				compatible = "snps,dw-apb-gpio-port";
@@ -908,6 +908,7 @@
 			mdio-pin = <&porta 29 GPIO_ACTIVE_HIGH>;
 			clocks = <&gpio_clk>;
 			clock-names = "gpioclk";
+	                status = "okay";
 
 			mv_ch0: ethernet-phy@c {
 				compatible = "marvell,88x2222", "ethernet-phy-ieee802.3-c45";
