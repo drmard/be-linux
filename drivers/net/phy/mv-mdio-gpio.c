@@ -78,11 +78,27 @@ struct mv_mdio_data {
   void *priv;
 };
 
+static struct mdiobb_ops mv_bb_ops = 
+{
+  .owner = THIS_MODULE,
+  .set_mdc = mv_set_mdc,
+  .set_mdio_dir = mv_set_mdio_dir,
+  .set_mdio_data = mv_set_mdio_data,
+  .get_mdio_data = mv_get_mdio_data,
+  .owner = THIS_MODULE,
+};
+
+static struct mdiobb_ctrl mv_mdiobb_ctrl = {
+  .ops = &mv_bb_ops,
+};
+
 static void *
 mv_mdio_gpio_get_data(struct platform_device *pdev
 )
-{ 
-  unsigned int freq = 0;
+{
+  struct mdio_gpio_info *bb;
+  struct mv_mdio_data *pdata;
+  struct mdiobb_ctrl *ctrl;
   struct device *dev = &pdev->dev;
   struct device_node *dn = pdev->dev.of_node;
   if (!dn) {
@@ -90,33 +106,34 @@ mv_mdio_gpio_get_data(struct platform_device *pdev
     return NULL;
   }
 
-  struct mv_mdio_data *pdata
-    = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
+  pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
   if (!pdata) {
     printk(KERN_INFO "%s - cannot allocate memory\n",__func__);
     return pdata;
   }
 
-  struct mdio_gpio_info *bb = devm_kzalloc(dev, sizeof(*bb), GFP_KERNEL);
+  bb = devm_kzalloc(dev, sizeof(*bb), GFP_KERNEL);
   if(unlikely(!bb)) {
     printk(KERN_INFO "[%s] - cannot allocate memory\n",__func__);
     return NULL;
   }
-  bb->ctrl = &mv_mdiobb_ctrl;
+
+  ctrl = &mv_mdiobb_ctrl;
+  bb->ctrl = *ctrl;
   pdata->bb = bb;
 
   pdata->bb->mdc = gpiod_get(dev, "mv,mdc", GPIOD_OUT_LOW);
   if (IS_ERR(pdata->bb->mdc)){
     printk(KERN_INFO "%s - failed to get gpio mdc: %ld\n",
     __func__,PTR_ERR(pdata->bb->mdc));
-    return PTR_ERR(pdata->bb->mdc);  
+    return /*PTR_ERR(pdata->bb->mdc)*/NULL;  
   }
 
   pdata->bb->mdio = gpiod_get(dev, "mv,mdio", GPIOD_OUT_LOW);
   if (IS_ERR(pdata->bb->mdio)) {
     printk(KERN_INFO "%s - failed to get gpio mdio: %ld\n",
     __func__, PTR_ERR(pdata->bb->mdio));
-    return PTR_ERR(pdata->bb->mdio);
+    return /*PTR_ERR(pdata->bb->mdio)*/NULL;
   }
 
   pdata->bb->mdo = gpiod_get(dev, "mv,mdo", GPIOD_OUT_LOW);
@@ -136,9 +153,7 @@ mv_mdio_gpio_get_data(struct platform_device *pdev
     __func__,PTR_ERR(pdata->intr));
   }
 
-  // DEBUG
-  printk (KERN_INFO "%s - returned address of priv. data: %x\n",
-  __func__, (void *)pdata);
+  // printk (KERN_INFO "%s - returned address of priv. data: %lu\n",__func__, (void *)pdata);
   return pdata;
 }
 
@@ -188,20 +203,6 @@ static int mv_get_mdio_data(struct mdiobb_ctrl *ctrl)
 
   return gpiod_get_value_cansleep(bb->mdio);
 }
-
-static struct mdiobb_ops mv_bb_ops = 
-{
-  .owner = THIS_MODULE,
-  .set_mdc = mv_set_mdc,
-  .set_mdio_dir = mv_set_mdio_dir,
-  .set_mdio_data = mv_set_mdio_data,
-  .get_mdio_data = mv_get_mdio_data,
-  .owner = THIS_MODULE,
-};
-
-static struct mdiobb_ctrl mv_mdiobb_ctrl = {  //  xxxxx
-  .ops = &mv_bb_ops,
-};
 
 // MDIO must already be configured as output
 static void mv_mdiobb_send_bit(struct mdiobb_ctrl *ctrl, int val)
@@ -342,7 +343,7 @@ EXPORT_SYMBOL(mv_mdiobb_read);
 
 int mv_mdiobb_write (struct mii_bus *bus, int phy, int reg, u16 val) {
   struct mv_mdio_data *data = bus->priv;
-  struct mdiobb_ctrl *ctrl = &data->ctrl;
+  struct mdiobb_ctrl *ctrl = &data->bb->ctrl;
 
   if (reg & MII_ADDR_C45) {
     reg = mv_mdiobb_cmd_addr(ctrl, phy, reg);
@@ -375,7 +376,7 @@ int mv_mdiobb_reset(struct mii_bus *bus)
   {
     mutex_lock(&bus->mdio_lock);
     gpiod_set_value_cansleep(priv->reset, 1);
-    msleep(data->msec_reset);
+    msleep(priv->msec_reset);      //   xxxx
     gpiod_set_value_cansleep(priv->reset, 0);
     mutex_unlock(&bus->mdio_lock);
   }
@@ -408,15 +409,11 @@ void mv_free_mdio_bitbang(struct mii_bus *bus)
   if (!bus)
     return;
 
-  struct mv_mdio_data *data = bus->priv;
-  struct mdiobb_ctrl *ctrl = &data->ctrl;
-  struct device *dev = data->dev;
-  //module_put(ctrl->ops->owner);
   if (bus->state == MDIOBUS_REGISTERED) {
     mdiobus_unregister(bus);
-
-    dev_set_drvdata(dev, NULL);
-    kfree(bus->priv);
+    //dev_set_drvdata(dev, NULL);
+    if (bus->priv != NULL)
+      kfree(bus->priv);
     bus->priv = NULL;
   }
 
@@ -435,6 +432,7 @@ static struct mii_bus *
 mv_mdio_gpio_bus_init(struct platform_device *pdev,
     struct mv_mdio_data *md, int bus_id)
 {
+  //struct mdio_gpio_info * in;                                                     //  xxxxxx
   struct device *dev = &pdev->dev;
   struct device_node *np = dev->of_node;
   if (unlikely(!np))
@@ -442,8 +440,7 @@ mv_mdio_gpio_bus_init(struct platform_device *pdev,
     printk (KERN_INFO "%s - cannot get device node\n",__func__);
     return NULL ;
   }
-
-  md->bb->ctrl = &mv_mdiobb_ctrl;
+  //md->bb->ctrl = &mv_mdiobb_ctrl;
 
   md->bus = mv_alloc_mdio_bitbang(&md->bb->ctrl);
   if (unlikely(!(md->bus))) {
@@ -462,16 +459,15 @@ mv_mdio_gpio_bus_init(struct platform_device *pdev,
     snprintf(md->bus->id, MII_BUS_ID_SIZE, "mv-mdio-gpio-%x", bus_id);
   else
     strncpy(md->bus->id, "mv-mdio-gpio", MII_BUS_ID_SIZE);
-
   // *** DEBUG ***
-  printk (KERN_INFO "%s - DEBUG: bus ID - %s\n",__func__,md->bus-id);
+  printk (KERN_INFO "%s - DEBUG: bus ID - %s\n",__func__,md->bus->id);
 
   // PHY reset duration
-  of_property_read_u32(np, "phy-reset-duration", &md->bus_data->msec_reset);
+  of_property_read_u32(np, "phy-reset-duration", &md->msec_reset);
 
   // A sane reset duration should not be longer than 1s
-  if (md->bus_data->msec_reset > 1000 || md->bus_data->msec_reset <= 0) {
-    md->bus_data->msec_reset = 1;
+  if (md->msec_reset > 1000 || md->msec_reset <= 0) {
+    md->msec_reset = 100;
   }
 
   dev_set_drvdata(dev, md);
@@ -485,7 +481,10 @@ mv_mdio_gpio_probe(struct platform_device *pdev)
   int ret = -1,
   _debug = 0,
   bus_id = -1,
-  register_failed = 0;
+  register_failed = 0,
+  addr ;
+  struct phy_device *phy;
+  resource_size_t mdio_phys, regsize;
   struct device_node *dn;
   struct resource *res;
   struct mv_mdio_data *data;
@@ -525,13 +524,12 @@ mv_mdio_gpio_probe(struct platform_device *pdev)
     printk(KERN_INFO "%s - not found resource memory\n", __func__);
     return -EINVAL;
   }
-  resource_size_t mdio_phys = res->start;
-  resource_size_t regsize = resource_size(res);
-  data->register_base = (u64)devm_ioremap(dev, mdio_phys, regsize);
+  mdio_phys = res->start;
+  regsize = resource_size(res);
+  data->register_base = (u64) devm_ioremap(&pdev->dev, mdio_phys, regsize);
   if(!data->register_base) {
     printk(KERN_INFO "%s - err:cannot pass \'dev_ioremap\'\n", __func__);
   }
-
   //can be impl. as davinci_mdio_init_clk(data);
   mv_mdio_init_clk(data);
 
@@ -551,12 +549,12 @@ mv_mdio_gpio_probe(struct platform_device *pdev)
   {
     phy = mdiobus_get_phy(data->bus, addr);
     if (phy) {
-      dev_info(dev, "phy[%d]: device %s, driver %s\n",
+      dev_info(&pdev->dev, "phy[%d]: device %s, driver %s\n",
         phy->mdio.addr,phydev_name(phy),phy->drv ? phy->drv->name : "unknown");
     }
   }
 
-err0:  
+err0:
   if (register_failed)
     mdiobus_free(data->bus);
 
@@ -571,8 +569,8 @@ mv_mdio_gpio_remove(struct platform_device *pdev)
 {
   mdiobus_unregister(platform_get_drvdata(pdev));
   dev_set_drvdata(&pdev->dev, NULL);
-  kfree(bus->priv);
-  bus->priv = NULL;
+  //kfree(bus->priv);
+  //bus->priv = NULL;
   return 0;
 }
 
