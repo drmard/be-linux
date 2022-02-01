@@ -53,6 +53,14 @@ static struct mcfg_fixup mcfg_quirks[] = {
 	AL_ECAM("GRAVITON", 0, 6, &al_pcie_ops),
 	AL_ECAM("GRAVITON", 0, 7, &al_pcie_ops),
 
+#define BAIKAL_ECAM(table_id, rev, seg, ops) \
+	{ "BAIKAL", table_id, rev, seg, MCFG_BUS_ANY, ops }
+
+	/* Baikal Synopsys DesignWare PCIe */
+	BAIKAL_ECAM("BKLEMCFG", 0, 0, &baikal_pcie_ecam_ops),
+	BAIKAL_ECAM("BKLEMCFG", 0, 1, &baikal_pcie_ecam_ops),
+	BAIKAL_ECAM("BKLEMCFG", 0, 2, &baikal_pcie_ecam_ops),
+
 #define QCOM_ECAM32(seg) \
 	{ "QCOM  ", "QDF2432 ", 1, seg, MCFG_BUS_ANY, &pci_32b_ops }
 
@@ -142,6 +150,26 @@ static struct mcfg_fixup mcfg_quirks[] = {
 	XGENE_V2_ECAM_MCFG(4, 0),
 	XGENE_V2_ECAM_MCFG(4, 1),
 	XGENE_V2_ECAM_MCFG(4, 2),
+
+#define ALTRA_ECAM_QUIRK(rev, seg) \
+	{ "Ampere", "Altra   ", rev, seg, MCFG_BUS_ANY, &pci_32b_read_ops }
+
+	ALTRA_ECAM_QUIRK(1, 0),
+	ALTRA_ECAM_QUIRK(1, 1),
+	ALTRA_ECAM_QUIRK(1, 2),
+	ALTRA_ECAM_QUIRK(1, 3),
+	ALTRA_ECAM_QUIRK(1, 4),
+	ALTRA_ECAM_QUIRK(1, 5),
+	ALTRA_ECAM_QUIRK(1, 6),
+	ALTRA_ECAM_QUIRK(1, 7),
+	ALTRA_ECAM_QUIRK(1, 8),
+	ALTRA_ECAM_QUIRK(1, 9),
+	ALTRA_ECAM_QUIRK(1, 10),
+	ALTRA_ECAM_QUIRK(1, 11),
+	ALTRA_ECAM_QUIRK(1, 12),
+	ALTRA_ECAM_QUIRK(1, 13),
+	ALTRA_ECAM_QUIRK(1, 14),
+	ALTRA_ECAM_QUIRK(1, 15),
 };
 
 static char mcfg_oem_id[ACPI_OEM_ID_SIZE];

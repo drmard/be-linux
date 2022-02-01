@@ -51,6 +51,7 @@
 #define BAIKAL_SMC_SCP_LOG_DISABLE  0x82000200
 
 int mode_fixup = 0;
+int mode_override = 0;
 
 static struct drm_mode_config_funcs mode_config_funcs = {
 	.fb_create = drm_gem_fb_create,
@@ -117,21 +118,11 @@ int baikal_vdu_find_panel_or_bridge(struct device *dev,
 static int baikal_vdu_remove_efifb(struct drm_device *dev)
 {
 	int err;
-	struct apertures_struct *a;
-	a = alloc_apertures(1);
-	if (!a) {
-		err = -ENOMEM;
-		dev_warn(dev->dev, "failed to allocate apertures\n");
-		goto out;
-	}
-	a->ranges[0].base = 0;
-	a->ranges[0].size = ~0;
-	err = drm_fb_helper_remove_conflicting_framebuffers(a, "baikal-vdudrmfb", false);
-	if (err) {
+	err = drm_fb_helper_remove_conflicting_framebuffers(NULL,
+							    "baikal-vdudrmfb",
+							    false);
+	if (err)
 		dev_warn(dev->dev, "failed to remove firmware framebuffer\n");
-	}
-	kfree(a);
-out:
 	return err;
 }
 
@@ -211,6 +202,7 @@ static int vdu_modeset_init(struct drm_device *dev)
 	}
 
 	priv->mode_fixup = mode_fixup;
+	priv->mode_override = mode_override;
 
 	baikal_vdu_remove_efifb(dev);
 
@@ -269,6 +261,7 @@ static struct drm_driver vdu_drm_driver = {
 	.dumb_destroy = drm_gem_dumb_destroy,
 	.dumb_map_offset = drm_gem_dumb_map_offset,
 	.gem_free_object_unlocked = drm_gem_cma_free_object,
+	.gem_print_info = drm_gem_cma_print_info,
 	.gem_vm_ops = &drm_gem_cma_vm_ops,
 
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
@@ -344,8 +337,16 @@ static int baikal_vdu_drm_probe(struct platform_device *pdev)
 		goto dev_unref;
 	}
 
+	ret = baikal_vdu_backlight_create(drm);
+	if (ret != 0) {
+		dev_err(dev, "Failed to create backlight\n");
+		goto backlight_failed;
+	}
+
 	return 0;
 
+backlight_failed:
+	drm_mode_config_cleanup(drm);
 dev_unref:
 	writel(0, priv->regs + IMR);
 	writel(0x3ffff, priv->regs + ISR);
@@ -384,6 +385,7 @@ static struct platform_driver baikal_vdu_platform_driver = {
 };
 
 module_param(mode_fixup, int, 0644);
+module_param(mode_override, int, 0644);
 
 module_platform_driver(baikal_vdu_platform_driver);
 

@@ -1,0 +1,381 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Device tree source for Baikal Electronics DBM board
+ * Copyright (C) 2019-2021 Baikal Electronics, JSC
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/input/input.h>
+#include "bm1000.dtsi"
+
+/ {
+	model = "Baikal Electronics DBM";
+	compatible = "baikal,dbm", "baikal,bm1000", "baikal,baikal-m";
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	aliases {
+		ethernet0	= &gmac0;
+		ethernet1	= &gmac1;
+		mdio-gpio0	= &mdio_gpio;
+	};
+
+	chosen { };
+
+	buttons-backlight {
+		compatible = "gpio-keys";
+		autorepeat;
+		button-brightness-down {
+			label = "Brightness Down Button";
+			linux,code = <KEY_BRIGHTNESSDOWN>;
+			gpios = <&porta 18 GPIO_ACTIVE_LOW>;
+			debounce-interval = <50>;
+		};
+		button-brightness-up {
+			label = "Brightness Up Button";
+			linux,code = <KEY_BRIGHTNESSUP>;
+			gpios = <&porta 17 GPIO_ACTIVE_LOW>;
+			debounce-interval = <50>;
+		};
+		button-brightness-toggle {
+			label = "Brightness Toggle Button";
+			linux,code = <KEY_BRIGHTNESS_TOGGLE>;
+			gpios = <&porta 31 GPIO_ACTIVE_LOW>;
+			debounce-interval = <50>;
+		};
+	};
+
+	panel {
+		compatible = "panel-lvds";
+		width-mm = <223>;
+		height-mm = <125>;
+		data-mapping = "vesa-24";
+		panel-timing {
+			/* 1920x1080 @ 60 Hz */
+			clock-frequency = <148500000>;
+			hactive = <1920>;
+			vactive = <1080>;
+			hsync-len = <44>;
+			hfront-porch = <88>;
+			hback-porch = <148>;
+			vsync-len = <5>;
+			vfront-porch = <4>;
+			vback-porch = <36>;
+		};
+		port {
+			panel0_lvds0: endpoint@0 {
+				remote-endpoint = <&vdu_lvds0_pads>;
+			};
+			panel0_lvds1: endpoint@1 {
+				remote-endpoint = <&vdu_lvds1_pads>;
+			};
+		};
+	};
+
+	sound {
+		compatible = "baikal,snd_soc_be";
+		baikal,cpu-dai = <&i2s>;
+		baikal,audio-codec = <&tlv320aic3x>;
+	};
+};
+
+&espi {
+	cs-gpios = <&porta 28 GPIO_ACTIVE_LOW>; /* TODO: get real gpio */
+	status = "okay";
+
+	espi_test0@0 { /* test device #0 */
+		compatible = "rohm,dh2228fv"; /* same as spidev */
+		reg = <0>;
+		spi-max-frequency = <12000000>;
+		status = "okay";
+	};
+};
+
+&gmac0 {
+	status = "okay";
+	clk_csr = <0x3>;
+	phy-handle = <&ethphy0>;
+	phy-mode = "rgmii-id";
+};
+
+&gmac1 {
+	status = "okay";
+	clk_csr = <0x3>;
+	phy-handle = <&ethphy1>;
+	phy-mode = "rgmii-id";
+};
+
+&gpio32 {
+	status = "okay";
+};
+
+&hda {
+	status = "okay";
+};
+
+&hdmi {
+	status = "okay";
+};
+
+&i2c1 {
+	status = "okay";
+
+	tlv320aic3x: tlv320aic3x@18 {
+		#sound-dai-cells = <0>;
+		compatible = "ti,tlv320aic3x";
+		reg = <0x18>;
+		reset-gpios = <&porta 4 GPIO_ACTIVE_LOW>;
+		status = "okay";
+		ai3x-micbias-vg = <1>;
+		ai3x-ocmv = <1>;
+	};
+
+	rtc@56 {
+		compatible = "abracon,abeoz9";
+		reg = <0x56>;
+	};
+};
+
+&i2c2 {
+	status = "okay";
+};
+
+&i2s {
+	status = "okay";
+	sound-dai = <&tlv320aic3x>;
+	system-clock-frequency = <12000000>;
+};
+
+&mdio0 {
+	ethphy0: ethernet-phy@3 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0x3>;
+		txd0-skew-ps = <0>;
+		txd1-skew-ps = <0>;
+		txd2-skew-ps = <0>;
+		txd3-skew-ps = <0>;
+		txc-skew-ps = <0xff>;
+	};
+};
+
+&mdio1 {
+	ethphy1: ethernet-phy@3 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0x3>;
+		txd0-skew-ps = <0>;
+		txd1-skew-ps = <0>;
+		txd2-skew-ps = <0>;
+		txd3-skew-ps = <0>;
+		txc-skew-ps = <0xff>;
+	};
+};
+
+&mdio_gpio {
+	status = "okay";
+
+	ethphy2: ethernet-phy@c {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0xc>;
+		phy-mode = "xgmii";
+		mv,line-mode = "KR";
+		mv,host-mode = "KX4";
+	};
+
+	ethphy3: ethernet-phy@e {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0xe>;
+		phy-mode = "xgmii";
+		mv,line-mode = "KR";
+		mv,host-mode = "KX4";
+	};
+};
+
+&mmc {
+	status = "okay";
+#if 0
+	/* emmc */
+	non-removable;
+	bus-width = <8>;
+	max-clock = <200000000>;
+#else
+	/* sd */
+	disable-wp;
+	bus-width = <4>;
+	max-clock = <25000000>;
+#endif
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&pcie1 {
+	status = "okay";
+};
+
+&pcie2 {
+	status = "okay";
+};
+
+&pcie_lcru {
+	status = "okay";
+};
+
+&pvt_ca57_0 {
+	status = "okay";
+};
+
+&pvt_ca57_1 {
+	status = "okay";
+};
+
+&pvt_ca57_2 {
+	status = "okay";
+};
+
+&pvt_ca57_3 {
+	status = "okay";
+};
+
+&pvt_mali {
+	status = "okay";
+};
+
+&sata0 {
+	status = "okay";
+};
+
+&sata1 {
+	status = "okay";
+};
+
+&smbus1 {
+	status = "okay";
+};
+
+&smbus2 {
+	status = "okay";
+};
+
+&spi {
+	num-cs = <4>;
+	cs-gpios = <&porta 24 GPIO_ACTIVE_LOW>, /* ss0 xp8 - DD53 normal flash */
+		   <&porta 25 GPIO_ACTIVE_LOW>, /* ss1 xp9 */
+		   <&porta 26 GPIO_ACTIVE_LOW>, /* ss2 xp10 */
+		   <&porta 27 GPIO_ACTIVE_LOW>; /* ss3 xp11 */
+	status = "okay";
+
+	flash@0 {
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		spi-max-frequency = <12500000>;
+		status = "okay";
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "bl1";
+				reg = <0x000000 0x40000>;
+				read-only;
+			};
+
+			partition@40000 {
+				label = "dtb";
+				reg = <0x040000 0x40000>;
+				read-only;
+			};
+
+			partition@80000 {
+				label = "uefi-vars";
+				reg = <0x080000 0xc0000>;
+			};
+
+			partition@140000 {
+				label = "fip";
+				reg = <0x140000 0x6c0000>;
+				read-only;
+			};
+		};
+	};
+};
+
+&timer1 {
+	status = "okay";
+};
+
+&timer2 {
+	status = "okay";
+};
+
+&timer3 {
+	status = "okay";
+};
+
+&timer4 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&uart2 {
+	status = "okay";
+};
+
+&usb2 {
+	status = "okay";
+};
+
+&usb3 {
+	status = "okay";
+};
+
+&vdec {
+	status = "okay";
+};
+
+&vdu0 {
+	status = "okay";
+	enable-gpios = <&porta 16 GPIO_ACTIVE_LOW>;
+	backlight {
+		min-brightness-level = <10>;
+		default-brightness-level = <60>;
+		brightness-level-step = <2>;
+		pwm-frequency = <20000>;
+	};
+	port {
+		vdu_lvds0_pads: endpoint@0 {
+			remote-endpoint = <&panel0_lvds0>;
+		};
+		vdu_lvds1_pads: endpoint@1 {
+			remote-endpoint = <&panel0_lvds1>;
+		};
+		/*vdu_lvds2_pads: endpoint@2 {
+			remote-endpoint = <&panel0_lvds2>;
+		};
+		vdu_lvds3_pads: endpoint@3 {
+			remote-endpoint = <&panel0_lvds3>;
+		};*/
+	};
+};
+
+&vdu1 {
+	status = "okay";
+};
+
+&xgmac0 {
+	status = "okay";
+	ext-phy-handle = <&ethphy2>;
+};
+
+&xgmac1 {
+	status = "okay";
+	ext-phy-handle = <&ethphy3>;
+};

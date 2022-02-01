@@ -537,7 +537,6 @@ static int pvt_probe(struct platform_device *pdev)
     unsigned int val, data;
     struct pvt_hwmon *hwmon;
     struct resource *mem;
-    struct device_node *np = pdev->dev.of_node;
 
     pr_debug("driver pvt_probe\n");
     hwmon = devm_kzalloc(&pdev->dev, sizeof(*hwmon), GFP_KERNEL);
@@ -548,7 +547,7 @@ static int pvt_probe(struct platform_device *pdev)
     hwmon->base = (int)mem->start;//devm_ioremap_resource(&pdev->dev, mem);
 
     /* Set PVT ID for secure monitor calls */
-    of_property_read_u32(np, "pvt_id", &(hwmon->pvt_id));
+    device_property_read_u32(&pdev->dev, "pvt_id", &(hwmon->pvt_id));
 
     hwmon->cell = mfd_get_cell(pdev);
     hwmon->irq = platform_get_irq(pdev, 0);
