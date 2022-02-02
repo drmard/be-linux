@@ -416,6 +416,7 @@ static void panfrost_job_timedout(struct drm_sched_job *sched_job)
 	spin_lock_irqsave(&pfdev->js->job_lock, flags);
 	for (i = 0; i < NUM_JOB_SLOTS; i++) {
 		if (pfdev->jobs[i]) {
+			panfrost_devfreq_record_transition(pfdev, js);
 			pm_runtime_put_noidle(pfdev->dev);
 			pfdev->jobs[i] = NULL;
 		}
@@ -424,7 +425,6 @@ static void panfrost_job_timedout(struct drm_sched_job *sched_job)
 
 	/* panfrost_core_dump(pfdev); */
 
-	panfrost_devfreq_record_transition(pfdev, js);
 	panfrost_device_reset(pfdev);
 
 	for (i = 0; i < NUM_JOB_SLOTS; i++)

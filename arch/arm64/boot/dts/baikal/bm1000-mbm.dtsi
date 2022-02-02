@@ -4,16 +4,26 @@
  * Copyright (C) 2021 Baikal Electronics, JSC
  */
 
-#include "bm-soc.dtsi"
-#include "bm-mali.dtsi"
+#include "bm1000.dtsi"
 
 / {
-	model = "Baikal Electronics Baikal-M mitx board";
-	compatible = "baikal,baikal-m";
 	#address-cells = <2>;
 	#size-cells = <2>;
 
+	aliases {
+		ethernet0 = &gmac0;
+		ethernet1 = &gmac1;
+	};
+
 	chosen { };
+
+	leds {
+		compatible = "gpio-leds";
+		led0 {
+			gpios = <&porta 8 GPIO_ACTIVE_HIGH>;
+			default-state = "keep";
+		};
+	};
 
 	sound {
 		compatible = "simple-audio-card";
@@ -45,27 +55,33 @@
 	};
 };
 
-&ddr2 {
+&gmac0 {
 	status = "okay";
+	clk_csr = <0x3>;
+	phy-handle = <&ethphy0>;
+	phy-mode = "rgmii-id";
 };
 
-&gpio {
+&gmac1 {
 	status = "okay";
+	clk_csr = <0x3>;
+	phy-handle = <&ethphy1>;
+	phy-mode = "rgmii-id";
 };
 
-&gpu {
-	system-coherency = <0>;
+&gpio32 {
+	status = "okay";
 };
 
 &hdmi {
 	status = "okay";
 };
 
-&i2c0 {
+&i2c1 {
 	status = "okay";
 
 	bmc@8 {
-		compatible = "tp,mitx2-bmc", "t-platforms,mitx2-bmc";
+		compatible = "tp,mitx2-bmc";
 		reg = <0x08>;
 	};
 
@@ -106,7 +122,7 @@
 	};
 };
 
-&i2c1 {
+&i2c2 {
 	status = "okay";
 };
 
@@ -117,11 +133,34 @@
 };
 
 &mdio0 {
-	status = "disabled";
+	ethphy0: ethernet-phy@3 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0x3>;
+		txd0-skew-ps = <0>;
+		txd1-skew-ps = <0>;
+		txd2-skew-ps = <0>;
+		txd3-skew-ps = <0>;
+		txc-skew-ps = <0xff>;
+	};
 };
 
-&mmc0 {
+&mdio1 {
+	ethphy1: ethernet-phy@3 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0x3>;
+		txd0-skew-ps = <0>;
+		txd1-skew-ps = <0>;
+		txd2-skew-ps = <0>;
+		txd3-skew-ps = <0>;
+		txc-skew-ps = <0xff>;
+	};
+};
+
+&mmc {
 	status = "okay";
+	disable-wp;
+	bus-width = <4>;
+	max-clock = <25000000>;
 };
 
 &pcie0 {
@@ -143,23 +182,23 @@
 		gpio-hog;
 		gpios = <1 GPIO_ACTIVE_LOW>;
 		output-high;
-		line_name = "pcie-x8-clock";
+		line-name = "pcie-x8-clock";
 	};
 };
 
-&pvt0 {
+&pvt_ca57_0 {
 	status = "okay";
 };
 
-&pvt1 {
+&pvt_ca57_1 {
 	status = "okay";
 };
 
-&pvt2 {
+&pvt_ca57_2 {
 	status = "okay";
 };
 
-&pvt3 {
+&pvt_ca57_3 {
 	status = "okay";
 };
 
@@ -175,15 +214,15 @@
 	status = "okay";
 };
 
-&smbus0 {
-	status = "okay";
-};
-
 &smbus1 {
 	status = "okay";
 };
 
-&spi0 {
+&smbus2 {
+	status = "okay";
+};
+
+&spi {
 	num-cs = <4>;
 	cs-gpios = <0>;
 	status = "okay";
@@ -205,11 +244,11 @@
 	status = "okay";
 };
 
-&uart0 {
+&uart1 {
 	status = "okay";
 };
 
-&uart1 {
+&uart2 {
 	status = "okay";
 };
 

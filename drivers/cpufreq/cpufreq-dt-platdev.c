@@ -32,6 +32,11 @@ static const struct of_device_id whitelist[] __initconst = {
 	{ .compatible = "arm,integrator-ap", },
 	{ .compatible = "arm,integrator-cp", },
 
+	{ .compatible = "baikal,bm1000", },
+	/*
+	 * TODO: "baikal,baikal-m" is legacy.
+	 *       Use "baikal,bm1000" for future development.
+	 */
 	{ .compatible = "baikal,baikal-m", },
 
 	{ .compatible = "hisilicon,hi3660", },
@@ -104,6 +109,8 @@ static const struct of_device_id whitelist[] __initconst = {
  */
 static const struct of_device_id blacklist[] __initconst = {
 	{ .compatible = "allwinner,sun50i-h6", },
+
+	{ .compatible = "arm,vexpress", },
 
 	{ .compatible = "calxeda,highbank", },
 	{ .compatible = "calxeda,ecx-2000", },

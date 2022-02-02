@@ -1,9 +1,0 @@
-# SPDX-License-Identifier: GPL-2.0-only
-menuconfig PLAT_RTT
-	bool "UNA Boards with BE SOCs"
-	depends on ARCH_BAIKAL
-
-config UNA10
-	bool "UNA 1.0 board support"
-	help
-	  Enable support for ARM-based UNA 1.0 board

@@ -649,11 +649,6 @@ static void xgbe_config_flow_control(struct xgbe_prv_data *pdata)
 
 static void xgbe_enable_dma_interrupts(struct xgbe_prv_data *pdata)
 {
-
-	printk  (KERN_INFO  "==%s  -start \n",__func__);
-
-
-
 	struct xgbe_channel *channel;
 	unsigned int i, ver;
 
@@ -737,10 +732,6 @@ static void xgbe_enable_mtl_interrupts(struct xgbe_prv_data *pdata)
 
 static void xgbe_enable_mac_interrupts(struct xgbe_prv_data *pdata)
 {
-
-	printk  (KERN_INFO  "==%s  -start \n",__func__);
-
-
 	unsigned int mac_ier = 0;
 
 	/* Enable Timestamp interrupt */
@@ -817,9 +808,6 @@ static void xgbe_disable_ecc_sec(struct xgbe_prv_data *pdata,
 
 static int xgbe_set_speed(struct xgbe_prv_data *pdata, int speed)
 {
-	printk  (KERN_INFO  "==%s  -start \n",__func__);
-
-
 	unsigned int ss;
 
 	switch (speed) {
@@ -989,10 +977,6 @@ static int xgbe_set_all_multicast_mode(struct xgbe_prv_data *pdata,
 static void xgbe_set_mac_reg(struct xgbe_prv_data *pdata,
 			     struct netdev_hw_addr *ha, unsigned int *mac_reg)
 {
-	printk  (KERN_INFO  "==%s  -start \n",__func__);
-
-
-
 	unsigned int mac_addr_hi, mac_addr_lo;
 	u8 *mac_addr;
 
@@ -1024,9 +1008,6 @@ static void xgbe_set_mac_reg(struct xgbe_prv_data *pdata,
 
 static void xgbe_set_mac_addn_addrs(struct xgbe_prv_data *pdata)
 {
-	printk  (KERN_INFO  "==%s  -start \n",__func__);
-
-
 	struct net_device *netdev = pdata->netdev;
 	struct netdev_hw_addr *ha;
 	unsigned int mac_reg;

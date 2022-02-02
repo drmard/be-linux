@@ -163,11 +163,6 @@ static int xgbe_i2c_abort(struct xgbe_prv_data *pdata)
 
 static int xgbe_i2c_set_enable(struct xgbe_prv_data *pdata, bool enable)
 {
-
-
-	printk (KERN_INFO "==%s  -start \n",__func__);
-
-	
 	unsigned int wait = XGBE_DISABLE_COUNT;
 	unsigned int mode = enable ? 1 : 0;
 
@@ -217,10 +212,6 @@ static void xgbe_i2c_disable_interrupts(struct xgbe_prv_data *pdata)
 
 static void xgbe_i2c_enable_interrupts(struct xgbe_prv_data *pdata)
 {
-	printk (KERN_INFO "==%s  -start \n",__func__);
-
-
-	
 	XI2C_IOWRITE(pdata, IC_INTR_MASK, XGBE_DEFAULT_INT_MASK);
 }
 

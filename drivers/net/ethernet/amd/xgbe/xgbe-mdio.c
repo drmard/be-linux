@@ -138,10 +138,6 @@ static int xgbe_phy_module_eeprom(struct xgbe_prv_data *pdata,
 static int xgbe_phy_module_info(struct xgbe_prv_data *pdata,
 				struct ethtool_modinfo *modinfo)
 {
-
-	printk  (KERN_INFO  "==%s  -start \n",__func__);
-
-
 	if (!pdata->phy_if.phy_impl.module_info)
 		return -ENXIO;
 
@@ -172,10 +168,6 @@ static void xgbe_an37_disable_interrupts(struct xgbe_prv_data *pdata)
 
 static void xgbe_an37_enable_interrupts(struct xgbe_prv_data *pdata)
 {
-
-	printk  (KERN_INFO  "==%s  -start \n",__func__);
-
-
 	int reg;
 
 	reg = XMDIO_READ(pdata, MDIO_MMD_PCS, MDIO_PCS_DIG_CTRL);
@@ -199,19 +191,11 @@ static void xgbe_an73_disable_interrupts(struct xgbe_prv_data *pdata)
 
 static void xgbe_an73_enable_interrupts(struct xgbe_prv_data *pdata)
 {
-	printk  (KERN_INFO  "==%s  -start \n",__func__);
-
-
-
 	XMDIO_WRITE(pdata, MDIO_MMD_AN, MDIO_AN_INTMASK, XGBE_AN_CL73_INT_MASK);
 }
 
 static void xgbe_an_enable_interrupts(struct xgbe_prv_data *pdata)
 {
-
-	printk  (KERN_INFO  "==%s  -start \n",__func__);
-
-
 	switch (pdata->an_mode) {
 	case XGBE_AN_MODE_CL73:
 	case XGBE_AN_MODE_CL73_REDRV:
@@ -234,11 +218,6 @@ static void xgbe_an_clear_interrupts_all(struct xgbe_prv_data *pdata)
 
 static void xgbe_kr_mode(struct xgbe_prv_data *pdata)
 {
-
-	printk  (KERN_INFO  "==%s  -start \n",__func__);
-
-
-
 	/* Set MAC to 10G speed */
 	pdata->hw_if.set_speed(pdata, SPEED_10000);
 
@@ -257,13 +236,6 @@ static void xgbe_kx_2500_mode(struct xgbe_prv_data *pdata)
 
 static void xgbe_kx_1000_mode(struct xgbe_prv_data *pdata)
 {
-
-	printk  (KERN_INFO  "==%s  -start \n",__func__);
-
-	
-
-
-
 	/* Set MAC to 1G speed */
 	pdata->hw_if.set_speed(pdata, SPEED_1000);
 
@@ -1373,7 +1345,7 @@ static void xgbe_phy_status(struct xgbe_prv_data *pdata)
 							     &an_restart);
 	if (an_restart) {
 		xgbe_phy_config_aneg(pdata);
-		return;
+		goto adjust_link;
 	}
 
 	if (pdata->phy.link) {
@@ -1424,7 +1396,6 @@ static void xgbe_phy_stop(struct xgbe_prv_data *pdata)
 	pdata->phy_if.phy_impl.stop(pdata);
 
 	pdata->phy.link = 0;
-	netif_carrier_off(pdata->netdev);
 
 	xgbe_phy_adjust_link(pdata);
 }

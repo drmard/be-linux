@@ -265,7 +265,7 @@ config SFP
 	select MDIO_I2C
 
 config 88X2222_PHY
-	tristate "Drivers for Marvell 88X2222 Tanceiver"
+	tristate "Driver for Marvell 88X2222 Transceiver"
 	---help---
 	  Support for Marvell Integrated Dual-port
 	  Multi-speed Ethernet Transceivers.

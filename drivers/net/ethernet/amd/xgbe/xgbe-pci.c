@@ -165,14 +165,6 @@ static int xgbe_config_irqs(struct xgbe_prv_data *pdata)
 {
 	int ret;
 
-
-
-	printk  (KERN_INFO "==%s  -start \n",__func__);
-
-
-
-
-	
 	ret = xgbe_config_multi_msi(pdata);
 	if (!ret)
 		goto out;
@@ -215,12 +207,6 @@ out:
 
 static int xgbe_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
-	printk  (KERN_INFO "==%s  -start \n",__func__);
-
-
-
-
-
 	struct xgbe_prv_data *pdata;
 	struct device *dev = &pdev->dev;
 	void __iomem * const *iomap_table;
