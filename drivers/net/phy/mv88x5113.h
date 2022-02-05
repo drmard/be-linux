@@ -173,7 +173,7 @@ typedef enum
 #define MV88X1553_PCS_LANE_OFFSET_SHIFT  0x200
 
 #define  MV88X5113_PCS_10G_CNTL          0x2000 //MXD_PCS_25G_CTNL
-#define  MV88X5113_PCS_10G_CNTL(laneX)   MV88X5113_PCS_10G_CNTL + (laneX * MV88X1553_PCS_LANE_OFFSET_SHIFT)
+//#define  MV88X5113_PCS_10G_CNTL(laneX)   MV88X5113_PCS_10G_CNTL + (laneX * MV88X1553_PCS_LANE_OFFSET_SHIFT)
 
 #define  MV88X5113_PCS_10G_STATUS        0x2001 //MXD_PCS_25G_STATUS in mxd driver
 #define  MV88X5113_PCS_10G_PCS_STATUS2   0x2008
@@ -192,12 +192,15 @@ typedef enum
 static void *mv88x5113_of_get_data(struct phy_device *);
 static struct phy_device *parse_mv_phydevice(struct device_node *);
 static struct device_node *get_phydevice_node(struct device *);
-static int set_mdio_bus(struct phy_device *);
-static int mv_get_link_status(struct phy_device *, MV88X5113_OP_CONFIG); 
-static int mv_read_status(struct phy_device *);
+int set_mdio_bus(struct phy_device *);
+int mv_get_link_status(struct phy_device *); 
+int mv_read_status(struct phy_device *);
 static int mv_hwmon_config(struct phy_device *, bool);
 static int mv_chip_probe(struct phy_device *);
-static int mv_soft_reset(struct phy_device *);
+int mv_soft_reset(struct phy_device *);
 static int mv_config_aneg(struct phy_device *);
+struct mii_bus *mv88X5113_mdio_bus_find (struct phy_device *);
+int phydev_read(struct phy_device *, int, u32);
+int phydev_write(struct phy_device *, int, u32, u16); 
 
 #endif /* __MARVELL_88X5113_H      */

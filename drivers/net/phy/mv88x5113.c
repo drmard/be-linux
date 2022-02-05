@@ -8,9 +8,12 @@
  * Driver is adapted for use on RTT UNA boards.
  *
  */
+
+// ----
 // ----
 // Attention :
-// It is Draft version of driver for debug on board UNA1.0
+// It is Draft Version of Driver for DEBUG on board UNA1.0
+// ----
 // ----
 
 #include <linux/module.h>
@@ -20,25 +23,39 @@
 #include <linux/hwmon.h>
 #include <linux/gpio.h>
 #include <linux/mdio.h>
+#include <linux/mdio-bitbang.h>
 #include <linux/marvell_phy.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
+#include <linux/of_mdio.h>
 
-#include "marvell-88x5113.h"
+#include "mv88x5113.h"
+#include "mv-mdio-gpio.h"
 
 #define MV_MODE_LINE_10GBKR         0x4103
 #define MV_MODE_LINE_10GBCR         0x4003
 #define MV_MODE_LINE_10GBSR         0x4003
 #define MV_MODE_HOST_10GBKX4        0x4023
+#define MV_MODE_HOST_10GBKR         0x4103
+
+//MODULE_DESCRIPTION("Marvell Alaska 88X5113 Ethernet PHY driver");
+MODULE_DESCRIPTION("RTT mv88x5113 PHY driver");
+MODULE_AUTHOR("Sergej Khrumalo <s.khrumalo@rusteletech.ru>");
+MODULE_LICENSE("GPL");
+
+struct mode { 
+  unsigned int mode_num;
+  char mode_name[16];
+};
 
 static struct mode line_modes[] = {
-        {MV_MODE_LINE_10GBKR, "KR"},
-        {MV_MODE_LINE_10GBSR, "SR"},
+  { MV_MODE_LINE_10GBKR, "KR" },
+  { MV_MODE_LINE_10GBSR, "SR" },
 };
 static struct mode host_modes[] = {
-        {MV_MODE_HOST_10GBKR, "KR"},
-        {MV_MODE_HOST_10GBKX4, "KX4"},
+  { MV_MODE_HOST_10GBKR, "KR" },
+  { MV_MODE_HOST_10GBKX4, "KX4" },
 };
 
 struct mv5113_chip {
@@ -57,7 +74,7 @@ struct mv5113_priv {
 
   DECLARE_BITMAP(supported_interfaces, PHY_INTERFACE_MODE_MAX);
   bool rate_match;
-  phy_interface_t mv5113_interface;
+  phy_interface_t /*mv5113_interface*/interface;
   int irq;
   int irq_active_low;
   int line_mode;
@@ -65,12 +82,12 @@ struct mv5113_priv {
   int addr;
   void *priv;
 };
-
+/*
 static const struct sfp_upstream_ops mv5113_sfp_ops = {
   .attach = phy_sfp_attach,
   .detach = phy_sfp_detach,
   .module_insert = mv5113_sfp_insert,
-};
+};*/
 
 static const struct mv5113_chip *to_mv5113_chip(
     struct phy_device *phydev)
@@ -80,9 +97,9 @@ static const struct mv5113_chip *to_mv5113_chip(
 
 static void mv5113_init_supported_interfaces(unsigned long *mask)
 {
-  __set_bit(PHY_INTERFACE_MODE_XAUI, mask);
-  __set_bit(PHY_INTERFACE_MODE_10GKR, mask);
-  __set_bit(PHY_INTERFACE_MODE_XGMII), mask);
+  //__set_bit(PHY_INTERFACE_MODE_XAUI, mask);
+  //__set_bit(PHY_INTERFACE_MODE_10GKR, mask);
+  //__set_bit(PHY_INTERFACE_MODE_XGMII), mask);
 }
 
 static int mv5113_init_interface(struct phy_device *phydev)
@@ -93,13 +110,17 @@ static int mv5113_init_interface(struct phy_device *phydev)
     return -EINVAL;
   }
 
-  priv->mv5113_interface = PHY_INTERFACE_MODE_10GKR;
-  if (phydev->interface == priv->mv5113_interface)
+  priv->interface = PHY_INTERFACE_MODE_10GKR;
+
+  if (phydev->interface == priv->interface)
     priv->rate_match = true;
+  else
+    priv->rate_match = false;
 
   return 0;
 }
 
+/*
 static int mv5113_sfp_insert(
     void *upstream, const struct sfp_eeprom_id *id)
 {
@@ -122,7 +143,7 @@ static int mv5113_sfp_insert(
   }
 
   return 0;
-}
+}*/
 
 int una_mdio_read (struct mii_bus *bus, int phy, int reg) {
   return mv_mdiobb_read (bus, phy, reg);
@@ -149,60 +170,57 @@ static struct device_node *get_phydevice_node(
 }
 EXPORT_SYMBOL_GPL(get_phydevice_node);
 
-static
-struct phy_device *parse_mv_phydevice (
-    struct device_node *node) {
+struct phy_device *_parse_mv_phydevice (struct device_node *node) {
   int ret;
   struct phy_device *phydev;
   if (!node)
-    return node;
+    return NULL;
 
-  phydev = of_phy_find_device(node) ;
+  phydev = of_phy_find_device(node);
   if (!phydev) {
-    err->error = -ENODEV;
-    strcpy(err->description,__func__);
-    goto err1;
-    printk(KERN_INFO "%s - cannot find phy device\n",__func__);
-    return phydev;
-  }
-  of_node_put(node);
-
-  ret = phy_init_hw(phydev);
-  if (ret != 0) {
-    printk(KERN_INFO "%s - cannot pass \'phy_init_hw\' \n",__func__);
+    printk(KERN_INFO "%s - failed \n",__func__);
+    //err->error = -ENODEV;
+    //strcpy(err->description,__func__);
+    //goto err1;
     return NULL;
   }
-
+  of_node_put(node);
+  ret = phy_init_hw(phydev);
+  if (ret != 0) {
+    printk(KERN_INFO "%s - \'phy_init_hw\' failed\n",__func__);
+    return NULL;
+  }
   return phydev;
+}
+
+struct phy_device *parse_mv_phydevice (struct device_node *node) {
+  return _parse_mv_phydevice(node);
 }
 EXPORT_SYMBOL_GPL(parse_mv_phydevice);
 
 // This method sets mdio bitbang bus for target phydev
-static int 
-set_mdio_bus (struct phy_device *phydev)
+int set_mdio_bus (struct phy_device *phydev)
 {
-  int ret;
+  struct mii_bus *bus;
   struct mv5113_priv *priv;
 
-  struct mii_bus *bus = phydev->mdio.bus;
+  bus = phydev->mdio.bus;
   if (!bus || !bus->read || !bus->write)
   {
     priv = dev_get_drvdata(&phydev->mdio.dev);
     if (!priv) {
       return -1;
     }
-
     phydev->mdio.bus = priv->bus;
   }
-
+  printk (KERN_INFO"%s - returned 0 \n",__func__);
   return 0;  
 }
 EXPORT_SYMBOL_GPL(set_mdio_bus);
 
 static int mv5113_soft_reset(struct phy_device *phydev) {
-  int ret;
-  int val = -1;
-  int count = 50;
+  int ret, val = -1;
+  int cnt = 50;
 
   val = phy_read_mmd(phydev, MV88X5113_PORT_REG, MV88X5113_PORT_RESET);
   if (val < 0) {
@@ -221,45 +239,47 @@ static int mv5113_soft_reset(struct phy_device *phydev) {
   if (ret) {
       printk (KERN_INFO "%s - cannot perform soft reset\n",__func__);
       return ret;
-    }
   }
+  /*
+  for (cnt = 0; cnt < 50; cnt++) {
+    usleep_range(MV88X5113_RESET_DELAY_US, MV88X5113_RESET_DELAY_US + 50);
+    ret = phy_read_mmd(phydev, MV88X5113_PORT_REG, MV88X5113_PORT_RESET);
+    if (!(ret & MV88X5113_SW_RST_ALL))
+      break;
+  } */
   do {
     usleep_range(MV88X5113_RESET_DELAY_US, MV88X5113_RESET_DELAY_US + 100);
     ret = phy_read_mmd(phydev, MV88X5113_PORT_REG, MV88X5113_PORT_RESET);
-  } while ((ret & MV88X5113_SW_RST_ALL) || count--);
+  } while ((ret & MV88X5113_SW_RST_ALL) || cnt--);
 
-  return 0;
+  return 0;   
 }
 
-static int mv_soft_reset(struct phy_device *phydev) {
+int mv_soft_reset(struct phy_device *phydev) {
   return mv5113_soft_reset(phydev);
 }
 EXPORT_SYMBOL_GPL(mv_soft_reset);
 
-static struct mii_bus *mv88X5113_mdio_bus_find (
-    struct phy_device *phydev)
+struct mii_bus *mv88X5113_mdio_bus_find (struct phy_device *phydev)
 {
-  int ret;
-
-  // device node represented parent device for phydev 
+  //int ret;
   struct device_node *dn;
-
   struct mii_bus *bus;
-  struct phy_device *pd;
-
+  //struct phy_device *pd;
   if (phydev)
-    dn = phydev->mdio.dev.parent.of_node;
+    dn = phydev->mdio.dev.parent->of_node;
+
   if (!phydev || !dn) {
     // Try to find in DT some una/mv mdio bus node
     dn = of_find_compatible_node(NULL, NULL, "mv,mv-mdio-gpio");
     if (!dn)   
-      return dn;
+      return NULL;
   }
   bus = of_mdio_find_bus(dn);
   if (!bus) {
     of_node_put(dn);
-    printk (
-    KERN_INFO "%s - cannot find mdio bus on target device node\n",__func__);
+
+    printk (KERN_INFO "%s - cannot find mdio bus on target device node\n",__func__);
     return NULL;
   }
     
@@ -267,27 +287,24 @@ static struct mii_bus *mv88X5113_mdio_bus_find (
   return bus;
 }
 EXPORT_SYMBOL_GPL(mv88X5113_mdio_bus_find);
-
-static int mv5113_power_down(struct phy_device *phydev) 
-{
+/*
+static int mv5113_power_down(struct phy_device *phydev) {
   int ret, val;
+  struct mii_bus *bus;
   struct mv5113_priv *priv = dev_get_drvdata(&phydev->mdio.dev);
   if (!priv) {
-    printk (
-    KERN_INFO "%s - err: cannot get private data for mv88x5113 \n", __func__) ;
+    printk(KERN_INFO "%s - err: cannot get private data for mv88x5113 \n", __func__) ;
     return -ENODEV;
   }
+
   if (priv->addr < 0) {
     printk (KERN_INFO "%s - err: incorrect phy address in private data\n", __func__);
     return 1;
   }
-  struct mii_bus *bus = priv->bus;
-  
-  ret = phy_set_bits_mmd(
-    phydev, MDIO_MMD_VEND2, MV_V2_PORT_CTRL, MV_V2_PORT_CTRL_PWRDOWN);
-  printk (KERN_INFO "");
+  bus = priv->bus;
+  ret = phy_set_bits_mmd(phydev, MDIO_MMD_VEND2, MV_V2_PORT_CTRL, MV_V2_PORT_CTRL_PWRDOWN);
   if (ret) {
-    printk(KERN_INFO "%s - cannot pass \'mv5113_power_down\' \n",__func__);
+    //printk(KERN_INFO "%s - cannot pass \'mv5113_power_down\' \n",__func__);
     return 1;
   }
 
@@ -298,51 +315,50 @@ static int mv5113_power_down(struct phy_device *phydev)
 
   return 0;
 }
+*/
 
 static int mv5113_port_power_up(struct phy_device *phydev)
 {
   int ret;
-
+  struct mii_bus *bus;
   struct mv5113_priv *priv = dev_get_drvdata(&phydev->mdio.dev);
-  if (phydev->drv)
+
   if (!priv || phydev->drv->phy_id != MARVELL_PHY_ID_88X5113) {
     printk(
     KERN_INFO "%s - err: phy ID is not match\n",__func__);
     return -ENODEV;
   }
+  bus = priv->bus;
 
-  struct mii_bus *bus = priv->bus;
-  ret = phy_write_mmd(
-    phydev, MV88X5113_HOST_SIDE, MV88X5113_PCS_10G_CNTL, 0x2040);
+  ret = phy_write_mmd(phydev, MV88X5113_HOST_SIDE, MV88X5113_PCS_10G_CNTL, 0x2040);
   if (ret)
     ret = bus->write(bus, priv->addr, MV88X5113_PCS_10G_CNTL, 0x2040);
   if (ret != 0) {  
     printk(
-    KERN_INFO "%s-err:cannot write value to reg \'MV88X5113_PCS_10G_CNTL\' err - %d\n",
-    __func__, ret);
+    KERN_INFO "%s-err:cannot write value to reg \'MV88X5113_PCS_10G_CNTL\' err - %d\n",__func__, ret);
     return ret;
   }
-  
   return 0;
 }
 
 static int mv5113_suspend(struct phy_device *phydev)
 {
-  return mv5113_power_down(phydev);
+  //return mv5113_power_down(phydev);
+  return 0;
 }
 
 static int mv5113_hwmon_config(struct phy_device *phydev, bool enable)
 {
-  int ret,fret;
-  u16 val;
+  int ret;
+  //u16 val;
   if (phydev->phy_id != MARVELL_PHY_ID_88X5113)  {
-    ret = 2;  // it is not our device
+    ret = 2;  // not such device
     goto err1 ;
   }
+
   ret = phy_read_mmd(phydev, MV88X5113_VEND_REG, MV88X5113_MISC_INTR_REG);     //0xF41F
-  if (ret == 0) {
-    // goto  err1;
-    // return 1;  
+  if (ret == 0) { 
+
   }
 
   if (!(ret & MV88X5113_SET_HIGH_TEMP_INTR) && enable) {
@@ -366,22 +382,22 @@ static int mv_hwmon_config(
   return mv5113_hwmon_config(phydev, enable);
 }
 EXPORT_SYMBOL_GPL(mv_hwmon_config);
-
 static int mv5113_resume(struct phy_device *phydev) 
-{
+{ /*
   int ret;
   ret = mv5113_power_up(phydev);
   if (ret) {
     return ret;
   }
-  return mv5113_hwmon_config(phydev, true);
+  return mv5113_hwmon_config(phydev, true);  */  
+  return 0; 
 }
-
+/*
 static int mv5113_get_features(struct phy_device *phydev)
 {
-  /* All supported linkmodes are set at probe */
+  // All supported linkmodes are set at probe
   return 0;
-}
+}   */
 
 static int mv5113_enable_aneg(
     struct phy_device *phydev, MV88X5113_OP_CONFIG conf)
@@ -412,7 +428,7 @@ static int mv5113_enable_aneg(
 static int mv5113_aneg_complete(struct phy_device *phydev)
 {
   int val = 0;
-  struct *priv = dev_get_drvdata(&phydev->mdio.dev);
+  struct mv5113_priv *priv = dev_get_drvdata(&phydev->mdio.dev);
   struct mii_bus *bus = phydev->mdio.bus;
   if (!bus)
     return 1;
@@ -448,13 +464,30 @@ static int mv_config_aneg(struct phy_device *phydev) {
 }
 EXPORT_SYMBOL_GPL(mv_config_aneg);
 
+static int get_link_status_ext (struct phy_device *phydev)
+{
+  int val = -1;
+
+  struct mv5113_priv *priv = dev_get_drvdata(&phydev->mdio.dev);
+  if (!priv) {
+    printk (KERN_INFO"%s - cannot get priv. data\n",__func__);
+    return 1;
+  }
+
+  if(priv->interface == PHY_INTERFACE_MODE_10GKR) {
+    val = phydev_read(phydev, 0x3, 0x2001);
+  } 
+
+  if (val > 0) return 1;
+  else         return 0;
+} 
+
 static int get_link_status(
     struct phy_device *phydev, MV88X5113_OP_CONFIG conf)
 {
-  int ret;
   int val = -1;
-  struct mv5113_priv *priv;
   struct mii_bus *bus;
+  struct mv5113_priv *priv;
 
   switch (conf) {
     case MV88X5113_P10LN:
@@ -469,90 +502,95 @@ static int get_link_status(
         priv = dev_get_drvdata(&phydev->mdio.dev);
         if (priv) {
           bus = priv->bus;
-          if (bus)
-            val = bus->read (bus, priv->addr, MV88X5113_PCS_10G_STATUS) &
-              MV88X5113_PCS_LINK_UP;
-            if (val)
-              return 1;
-            else
-              return 0;
+          if (bus) {
+            val = bus->read(bus, priv->addr, MV88X5113_PCS_10G_STATUS) & MV88X5113_PCS_LINK_UP;
+            if (val)   return 1;
+            else       return 0;
+          }
         }
       }
       break;
-      default:
-          break;
+
+    default:
+      break;
   }
 }
 
-static int
-mv_get_link_status (struct phy_device *phydev, MV88X5113_OP_CONFIG conf)
+int mv_get_link_status(struct phy_device *phydev)
 {
-  return get_link_status(phydev, conf);
+  return get_link_status_ext(phydev);
 }
-EXTERNAL_SYMBOL_GPL(mv_get_link_status);
+// EXTERNAL_SYMBOL_GPL(mv_get_link_status);
 
-static int
-mv_read_status(struct phy_device *phydev)
+int mv_read_status(struct phy_device *phydev)
 {
-  if (!phdev)
+  int val = -1;
+  val = get_link_status_ext(phydev);
+  printk(KERN_INFO "%s - link status: %d\n",__func__,val);
+  // val2 = get_link_status (phydev, MV88X5113_P10KN);
+  // printk(KERN_INFO "%s - link status on host side: %d\n",__func__,val2);
+  if (val)
     return 1;
-
-  int err, val1 = -1, val2 = -1;
-  // Status on line side
-  val1 = get_link_status (phydev, MV88X5113_P10LN);
-  printk(KERN_INFO "%s - link status on line side: %d\n",__func__,val1);
-
-  // Status on host side
-  val2 = get_link_status (phydev, MV88X5113_P10KN);
-  printk(KERN_INFO "%s - link status on host side: %d\n",__func__,val2);
-
-  if (val1 && val2)
-    return 1;
-
   return 0;
 }
-EXTERNAL_SYMBOL_GPL(mv_read_status);
+//EXTERNAL_SYMBOL_GPL(mv_read_status);  // we can pass all code to AMD    driver instead THIS definition !!!
 
-// manage temp status
+// manage temp. status
 static int mv5113_hwmon_read_temp_reg(struct phy_device *phydev)
 {
   // we need not get temp. param
   // we should control of high temp. interrupt
   // during passing suspend and resume actions
 
-  //ret = phy_read_mmd(phydev, MV88X5113_CHIP_REG, MV_V2_TEMP);
+  // ret = phy_read_mmd(phydev, MV88X5113_CHIP_REG, MV_V2_TEMP);
 
   return 0;
 }
 
-static int mv5113_match_phy_device(
-    struct phy_device *phydev)
+static int mv5113_match_phy_device(struct phy_device *phydev)
 {
   int ret;
-  if (!phydev->c45_ids) {
-    printk(KERN_INFO "%s - invalid private data \n",__func__);
-  }
-
-  unsigned int phy_id =
-    phydev->c45_ids.device_ids[MDIO_MMD_PCS] & MARVELL_PHY_ID_MASK;
+  unsigned int phy_id;
+  /*
+  if (!(phydev->c45_ids | 0x0000)) {
+    printk(KERN_INFO "%s - invalid priv. data\n",__func__);
+    return -1;
+  }   */
+  phy_id = phydev->c45_ids.device_ids[MDIO_MMD_PCS] & MARVELL_PHY_ID_MASK;
   printk(KERN_INFO "%s: matching PHY ID: phy_id - %ux\n", __func__, phy_id);
-
   ret = (phy_id == MARVELL_PHY_ID_88X5113);
   printk (KERN_INFO "%s - returned %d\n",__func__,ret);
+
   return ret;
+}
+
+int phydev_read(struct phy_device *phydev, int dev, u32 reg)
+{
+  if (phydev->mdio.bus && phydev->mdio.addr >= 0)
+    return phy_read(phydev, reg);
+
+  return phy_read_mmd(phydev, dev, reg);  
+}
+
+int phydev_write(struct phy_device *phydev, int dev, u32 reg, u16 val) 
+{
+  if (phydev->mdio.bus && phydev->mdio.addr >= 0)
+    return phy_write(phydev, reg, val);
+
+  return phy_write_mmd(phydev, dev, reg, val);
 }
 
 static int mv5113_config_init(struct phy_device *phydev)
 {
-  int err = 0;
-  struct mv5113_priv *priv = dev_get_drvdata(&phydev->mdio.dev);
+  int err = 0,ret;
+  //struct mv5113_priv *priv = dev_get_drvdata(&phydev->mdio.dev);
   const struct mv5113_chip *chip = to_mv5113_chip(phydev);
-  // write mode and speed for interface on line side 
-  ret = phy_write_mmd(
-    phydev, MV88X5113_LINE_SIDE, MV88X5113_MODE_REGISTER, 0x4003);
+
+
+  // write mode and speed for interface on line side
+  ret = phydev_write(phydev, MV88X5113_LINE_SIDE, MV88X5113_MODE_REGISTER, 0x4003);
   if (ret) {
-    printk(
-      KERN_INFO "%s - cannot write mode to mv88x5113's registers\n",__func__);
+    printk(KERN_INFO"%s - cannot write mode to mv88x5113's registers\n",__func__);
     return 1;
   }
   // the same on host side
@@ -609,33 +647,36 @@ static void *mv88x5113_of_get_data(struct phy_device *phydev)
   char mode[64];
   const char *pm = mode;
   int address = -1;
+  struct device* dev;
 
   pdata = devm_kzalloc(&phydev->mdio.dev, sizeof(*pdata), GFP_KERNEL);
-  if (!pdata) {
+  if (unlikely(!pdata))
+  {
     printk (
     KERN_INFO "%s - cannot allocate memory for struct mv88x5113_data \n",__func__);
     return pdata;
   }
-
+  dev = &phydev->mdio.dev ;
   dn = phydev->mdio.dev.of_node;
   if (!dn) {
-    dn = get_phydevice_node(phydev->mdio.dev);
+    dn = get_phydevice_node(dev);
   }
   if (dn) {
     pdata->phy_node = dn;
   } else {
     printk(KERN_INFO "%s - device node is not valid\n",__func__);
-    return;
+    return (void *)NULL;
   }
 
   // try to find phydev's mdio bus
   mii_bus = mv88X5113_mdio_bus_find(phydev);
   if(mii_bus) {
     pdata->bus = mii_bus;
-    get_device(mii_bus->dev);
+    get_device(&mii_bus->dev);       //   get_device(&priv->master_mii_bus->dev);
 
-    if (mii_bus->priv)
+    if (mii_bus->priv) {
       pdata->mii_dn = mii_bus->priv;
+    }
   }
 
   ret = of_get_named_gpio_flags(dn, "mv-irq-pin", 0, &flags);
@@ -655,7 +696,7 @@ static void *mv88x5113_of_get_data(struct phy_device *phydev)
 
   ret = of_property_read_string(dn, "una,mv-line-mode", &pm);
   if (!ret) {
-    for(i = 0; i < sizeof(line_modes)/sizeof(struct mode); ++1) {
+    for(i = 0; i < sizeof(line_modes)/sizeof(struct mode); ++i) {
       if(strcasecmp(line_modes[i].mode_name, pm) == 0) {
         pdata->line_mode = line_modes[i].mode_num;
         break;
@@ -704,12 +745,13 @@ static int mv5113_probe(struct phy_device *phydev)
   } else { 
     printk (KERN_INFO"%s - phydev get data : Ok\n",__func__);
   }
+
+  if (phydev->interface != PHY_INTERFACE_MODE_10GKR)
+    phydev->interface = PHY_INTERFACE_MODE_10GKR;
+ 
   // Marvell10g.c (drivers\net\phy):	dev_set_drvdata(&phydev->mdio.dev, priv);
-  ret = dev_set_drvdata(&phydev->mdio.dev, priv);
-  if (ret != 0) {
-    printk (KERN_INFO "%s \'dev_set_drvdata\' failed \n",__func__);
-    goto err0;
-  }
+  dev_set_drvdata(&phydev->mdio.dev, priv);
+
   // save private data
   phydev->priv = priv;
   ret = mv5113_hwmon_probe (phydev);
@@ -728,15 +770,15 @@ static int mv_chip_probe(struct phy_device *phy)
 }
 EXPORT_SYMBOL_GPL(mv_chip_probe);
 
-static struct phy_driver mv5113_drivers[] = {
+static struct phy_driver rtt_10g_drivers[] = {
   {
   .phy_id = MARVELL_PHY_ID_88X5113,
   .phy_id_mask = 0xfffffff0,
   .match_phy_device  = mv5113_match_phy_device,
   .name  = "mv88x5113",
   .driver_data = &mv5113_type,
-  .get_feature = mv5113_get_features,
-  .config_init = mv88x5113_config_init,
+  //.get_feature = mv5113_get_features,
+  .config_init = mv5113_config_init,
   .probe = mv5113_probe,
   .suspend = mv5113_suspend,
   .resume = mv5113_resume,      
@@ -754,13 +796,10 @@ static const struct of_device_id mv88x5113_of_match[] = {
   },
 };
 
-module_phy_driver(mv5113_drivers);
+module_phy_driver(rtt_10g_drivers);
 
-static struct mdio_device_id __maybe_unused mv5113_tbl[] = {
-	{ MARVELL_PHY_ID_88X5113, 0xfffffff0 },
+static struct mdio_device_id __maybe_unused /*mv5113_tbl*/rtt_10g_tbl[] = {
+  { MARVELL_PHY_ID_88X5113, 0xfffffff0 },
 };
 
-MODULE_DEVICE_TABLE(mdio, mv5113_tbl);
-MODULE_DESCRIPTION("Marvell Alaska 88X5113 Ethernet PHY driver");
-MODULE_LICENSE("GPL");
-
+MODULE_DEVICE_TABLE(mdio, /*mv5113_tbl*/rtt_10g_tbl);

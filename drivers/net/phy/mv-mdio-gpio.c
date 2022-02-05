@@ -78,6 +78,53 @@ struct mv_mdio_data {
   void *priv;
 };
 
+static void mv_set_mdc(struct mdiobb_ctrl *ctrl, int what)
+{
+  struct mdio_gpio_info *bb =
+    container_of(ctrl, struct mdio_gpio_info, ctrl);
+  if (bb)
+    gpiod_set_value_cansleep(bb->mdc, what);
+}
+
+static void mv_set_mdio_dir(struct mdiobb_ctrl *ctrl, int dir)
+{
+  struct mdio_gpio_info *bb =
+    container_of(ctrl, struct mdio_gpio_info, ctrl);
+  if (bb && bb->mdo) {
+    // Separate output pin. Always set its value to high
+    // when changing direction. If direction is input,
+    // assume the pin serves as pull-up. If direction is
+    // output, the default value is high.
+    gpiod_set_value_cansleep(bb->mdo, 1);
+    return;
+  }
+  if (bb) {
+    if (dir)
+    gpiod_direction_output(bb->mdio, 1);
+    else
+    gpiod_direction_input(bb->mdio);
+  }
+}
+
+static void mv_set_mdio_data(struct mdiobb_ctrl *ctrl, int val)
+{
+  struct mdio_gpio_info *bb =
+    container_of(ctrl, struct mdio_gpio_info, ctrl);
+  if (bb && bb->mdo) {
+    gpiod_set_value_cansleep(bb->mdo, val);
+  } else { 
+    gpiod_set_value_cansleep(bb->mdio, val);
+  }
+}
+
+static int mv_get_mdio_data(struct mdiobb_ctrl *ctrl)
+{
+  struct mdio_gpio_info *bb =
+    container_of(ctrl, struct mdio_gpio_info, ctrl);
+
+  return gpiod_get_value_cansleep(bb->mdio);
+}
+
 static struct mdiobb_ops mv_bb_ops = 
 {
   .owner = THIS_MODULE,
@@ -93,8 +140,7 @@ static struct mdiobb_ctrl mv_mdiobb_ctrl = {
 };
 
 static void *
-mv_mdio_gpio_get_data(struct platform_device *pdev
-)
+mv_mdio_gpio_get_data(struct platform_device *pdev)
 {
   struct mdio_gpio_info *bb;
   struct mv_mdio_data *pdata;
@@ -155,53 +201,6 @@ mv_mdio_gpio_get_data(struct platform_device *pdev
 
   // printk (KERN_INFO "%s - returned address of priv. data: %lu\n",__func__, (void *)pdata);
   return pdata;
-}
-
-static void mv_set_mdc(struct mdiobb_ctrl *ctrl, int what)
-{
-  struct mdio_gpio_info *bb =
-    container_of(ctrl, struct mdio_gpio_info, ctrl);
-  if (bb)
-    gpiod_set_value_cansleep(bb->mdc, what);
-}
-
-static void mv_set_mdio_dir(struct mdiobb_ctrl *ctrl, int dir)
-{
-  struct mdio_gpio_info *bb =
-    container_of(ctrl, struct mdio_gpio_info, ctrl);
-  if (bb && bb->mdo) {
-    // Separate output pin. Always set its value to high
-    // when changing direction. If direction is input,
-    // assume the pin serves as pull-up. If direction is
-    // output, the default value is high.
-    gpiod_set_value_cansleep(bb->mdo, 1);
-    return;
-  }
-  if (bb) {
-    if (dir)
-    gpiod_direction_output(bb->mdio, 1);
-    else
-    gpiod_direction_input(bb->mdio);
-  }
-}
-
-static void mv_set_mdio_data(struct mdiobb_ctrl *ctrl, int val)
-{
-  struct mdio_gpio_info *bb =
-    container_of(ctrl, struct mdio_gpio_info, ctrl);
-  if (bb && bb->mdo) {
-    gpiod_set_value_cansleep(bb->mdo, val);
-  } else { 
-    gpiod_set_value_cansleep(bb->mdio, val);
-  }
-}
-
-static int mv_get_mdio_data(struct mdiobb_ctrl *ctrl)
-{
-  struct mdio_gpio_info *bb =
-    container_of(ctrl, struct mdio_gpio_info, ctrl);
-
-  return gpiod_get_value_cansleep(bb->mdio);
 }
 
 // MDIO must already be configured as output
