@@ -181,9 +181,9 @@
 #define XGBE_DMA_SYS_AWCR	0x30303030
 
 /* DMA cache settings - PCI device */
-#define XGBE_DMA_PCI_ARCR	0x000f0f0f
-#define XGBE_DMA_PCI_AWCR	0x0f0f0f0f
-#define XGBE_DMA_PCI_AWARCR	0x00000f0f
+#define XGBE_DMA_PCI_ARCR	0x00000003
+#define XGBE_DMA_PCI_AWCR	0x13131313
+#define XGBE_DMA_PCI_AWARCR	0x00000313
 
 /* DMA channel interrupt modes */
 #define XGBE_IRQ_MODE_EDGE	0
@@ -1043,6 +1043,11 @@ struct xgbe_prv_data {
 #ifdef CONFIG_BAIKAL_XGBE
 	/* phydevice - tranciever */
 	struct phy_device *phydev;
+#endif
+
+#ifdef CONFIG_MV_MDIO_GPIO
+	// device represented mv88x5113 on mv-mdio-gpio bus
+	struct phy_device *mv_phydev;
 #endif
 
 	/* Version related data */
