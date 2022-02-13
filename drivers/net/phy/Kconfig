@@ -145,6 +145,13 @@ config MDIO_GPIO
 	  To compile this driver as a module, choose M here: the module
 	  will be called mdio-gpio.
 
+config MV_MDIO_GPIO
+	tristate "RTT MDIO GPIO bus"
+	depends on GPIOLIB
+	depends on MDIO_GPIO
+	---help---
+	  Support MDIO GPIO bitbanged bus for RTT boards
+
 config MDIO_HISI_FEMAC
 	tristate "Hisilicon FEMAC MDIO bus controller"
 	depends on HAS_IOMEM && OF_MDIO
@@ -265,11 +272,17 @@ config SFP
 	select MDIO_I2C
 
 config 88X2222_PHY
-	tristate "Drivers for Marvell 88X2222 Tanceiver"
+	tristate "Driver for Marvell 88X2222 Transceiver"
 	---help---
 	  Support for Marvell Integrated Dual-port
 	  Multi-speed Ethernet Transceivers.
 	  Currently supports 88x2222
+
+config 88X5113_PHY
+	tristate "Driver for Marvell 88X5113 Transceiver"
+	depends on OF && OF_MDIO && MV_MDIO_GPIO && MDIO_BITBANG
+	---help---
+	  Supports 88x5113 only on UNA boards
 
 config ADIN_PHY
 	tristate "Analog Devices Industrial Ethernet PHYs"

@@ -1045,6 +1045,11 @@ struct xgbe_prv_data {
 	struct phy_device *phydev;
 #endif
 
+#ifdef CONFIG_MV_MDIO_GPIO
+	// phy device represented mv88x5113 transceiver
+	struct phy_device *mv_phydev;
+#endif
+
 	/* Version related data */
 	struct xgbe_version_data *vdata;
 
