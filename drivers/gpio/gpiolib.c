@@ -1185,19 +1185,16 @@ static void gpiodevice_release(struct device *dev)
 }
 
 static int gpiochip_setup_dev(struct gpio_device *gdev)
-{printk (KERN_INFO "PCIE:BAIKAL  start gpiochip_setup_dev()\n");
-
+{
 	int ret;
+
 	cdev_init(&gdev->chrdev, &gpio_fileops);
 	gdev->chrdev.owner = THIS_MODULE;
 	gdev->dev.devt = MKDEV(MAJOR(gpio_devt), gdev->id);
 
 	ret = cdev_device_add(&gdev->chrdev, &gdev->dev);
-	if (ret) {
-        printk (KERN_INFO "PCIE:BE gpio:cannot add char dev on %s\n",gdev->chip) ;
+	if (ret)
 		return ret;
-
-    }
 
 	chip_dbg(gdev->chip, "added GPIO chardev (%d:%d)\n",
 		 MAJOR(gpio_devt), gdev->id);
@@ -1216,8 +1213,6 @@ static int gpiochip_setup_dev(struct gpio_device *gdev)
 
 err_remove_device:
 	cdev_device_del(&gdev->chrdev, &gdev->dev);
-
-    printk (KERN_INFO  "PCIE:BE end of gpiochip_setup_dev() returned : %d\n",ret);
 	return ret;
 }
 

@@ -25,7 +25,7 @@
  */
 const struct of_device_id *of_match_device(const struct of_device_id *matches,
 					   const struct device *dev)
-{   //printk  (KERN_INFO  "%s   start \n",__func__);
+{
 	if ((!matches) || (!dev->of_node))
 		return NULL;
 	return of_match_node(matches, dev->of_node);

@@ -19,7 +19,7 @@
 #include "dwmac_dma.h"
 #include "dwmac1000_dma.h"
 
-#define MAC_GPIO	0x000000e0	/* GPIO register */
+#define MAC_GPIO	0x00e0		/* GPIO register */
 #define MAC_GPIO_GPO	(1 << 8)	/* Output port */
 
 struct baikal_dwmac {
@@ -37,7 +37,7 @@ static int baikal_dwmac_dma_reset(void __iomem *ioaddr)
 	value |= DMA_BUS_MODE_SFT_RESET;
 	writel(value, ioaddr + DMA_BUS_MODE);
 
-	udelay(10);
+	udelay(100);
 
 	/* Clear PHY reset */
 	value = readl(ioaddr + MAC_GPIO);
@@ -88,6 +88,7 @@ static struct mac_device_info *baikal_dwmac_setup(void *ppriv)
 		return NULL;
 	}
 
+	/* Clear PHY reset */
 	value = readl(priv->ioaddr + MAC_GPIO);
 	value |= MAC_GPIO_GPO;
 	writel(value, priv->ioaddr + MAC_GPIO);

@@ -22,10 +22,9 @@
 #include "pcie-designware.h"
 
 struct dw_plat_pcie {
-	struct pcie_port	pp;	/* pp.dbi_base is DT 0th resource */
-	struct dw_pcie			    *pci;
-	struct regmap		     	*regmap;
-	enum dw_pcie_device_mode	 mode;
+	struct dw_pcie			*pci;
+	struct regmap			*regmap;
+	enum dw_pcie_device_mode	mode;
 };
 
 struct dw_plat_pcie_of_data {
@@ -112,19 +111,15 @@ static const struct dw_pcie_ep_ops pcie_ep_ops = {
 	.raise_irq = dw_plat_pcie_ep_raise_irq,
 	.get_features = dw_plat_pcie_get_features,
 };
-/*
+
 static int dw_plat_add_pcie_port(struct dw_plat_pcie *dw_plat_pcie,
 				 struct platform_device *pdev)
 {
-
-
-        
-
 	struct dw_pcie *pci = dw_plat_pcie->pci;
 	struct pcie_port *pp = &pci->pp;
 	struct device *dev = &pdev->dev;
 	int ret;
-        printk(KERN_INFO "PCIE:BAIKAL  start - dw_plat_add_pcie_port() \n");
+
 	pp->irq = platform_get_irq(pdev, 1);
 	if (pp->irq < 0)
 		return pp->irq;
@@ -136,20 +131,16 @@ static int dw_plat_add_pcie_port(struct dw_plat_pcie *dw_plat_pcie,
 	}
 
 	pp->ops = &dw_plat_pcie_host_ops;
+
 	ret = dw_pcie_host_init(pp);
 	if (ret) {
 		dev_err(dev, "Failed to initialize host\n");
 		return ret;
 	}
 
-    printk(KERN_INFO "PCIE:BAIKAL  end - dw_plat_add_pcie_port() SUCCESS\n");
-
-
-
 	return 0;
 }
-*/
-/*
+
 static int dw_plat_add_pcie_ep(struct dw_plat_pcie *dw_plat_pcie,
 			       struct platform_device *pdev)
 {
@@ -180,120 +171,30 @@ static int dw_plat_add_pcie_ep(struct dw_plat_pcie *dw_plat_pcie,
 		return ret;
 	}
 	return 0;
-}*/
-
-// From 4.3
-// without these 3 functions ALL works fine
-//
-static irqreturn_t _dw_plat_pcie_msi_irq_handler(int irq, void *arg)
-{
-	struct pcie_port *pp = arg;
-	return dw_handle_msi_irq(pp);
 }
 
-static int _dw_plat_add_pcie_port(struct pcie_port *pp,
-				 struct platform_device *pdev)
-{
-	struct device *dev = pp->dev;
-	int ret;
-
-
-printk(KERN_INFO  "PCIE:BE FUNC:_dw_plat_add_pcie_port() - start \n");
-
-
-	pp->irq = platform_get_irq(pdev, 1);
-	if (pp->irq < 0)
-		return pp->irq;
-
-	if (IS_ENABLED(CONFIG_PCI_MSI)) {
-		pp->msi_irq = platform_get_irq(pdev, 0);
-		if (pp->msi_irq < 0)
-			return pp->msi_irq;
-
-		ret = devm_request_irq(dev, pp->msi_irq, _dw_plat_pcie_msi_irq_handler,
-					IRQF_SHARED, "dw-plat-pcie-msi", pp);
-		if (ret) {
-			dev_err(dev, "failed to request MSI IRQ\n");
-			return ret;
-		}
-	}
-	pp->root_bus_nr = -1;
-	pp->ops = &dw_plat_pcie_host_ops;
-	ret = dw_pcie_host_init(pp);
-	if (ret) {
-		dev_err(dev, "failed to initialize host\n");
-		return ret;
-	}
-
-
-printk(KERN_INFO  "PCIE:BE FUNC:_dw_plat_add_pcie_port() - end    returned : 0 \n");
-	return 0;
-}
-
-static int dw_plat_pcie_probe(struct platform_device *pdev) {
-	struct device *dev = &pdev->dev;
-	struct dw_plat_pcie *dw_plat_pcie;
-	struct pcie_port *pp;
-	struct resource *res; int ret;
-        printk(KERN_INFO "PCIE:BAIKAL  start - dw_plat_pcie_probe() \n");
-        if (dev == 0)
-        printk(KERN_INFO "PCIE:BAIKAL  dw_plat_pcie_probe() :dev==0\n");
-        else
-        printk(KERN_INFO "PCIE:BAIKAL  dw_plat_pcie_probe() :dev is NOT NULL\n");
-	dw_plat_pcie = devm_kzalloc(dev, sizeof(*dw_plat_pcie), GFP_KERNEL);
-	if (!dw_plat_pcie)  
-      return -ENOMEM;
-    else
-      printk(KERN_INFO "PCIE:BAIKAL  dw_plat_pcie_probe() :dw_plat_pcie is NOT NULL    continue\n");
-
-
-	pp = &dw_plat_pcie->pp;
-    pp->dev = dev;
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	pp->dbi_base = devm_ioremap_resource(dev, res);
-	if (IS_ERR(pp->dbi_base))  
-      return PTR_ERR(pp->dbi_base);
-
-	ret = _dw_plat_add_pcie_port(pp, pdev);
-	if (ret < 0) {
-      printk(KERN_INFO "PCIE:BAIKAL error of _dw_plat_add_pcie_port() ret==%d\n",ret);
-      return ret;
-    }
-    printk(KERN_INFO "PCIE:BAIKAL  end - dw_plat_pcie_probe() SUCCESS\n");
-	return 0;
-}
-// end from 4.3
-
-// 5.1 version of 'dw_plat_pcie_probe'
-/*
 static int dw_plat_pcie_probe(struct platform_device *pdev)
-{   
+{
 	struct device *dev = &pdev->dev;
 	struct dw_plat_pcie *dw_plat_pcie;
 	struct dw_pcie *pci;
-	struct resource *res;  // Resource from DT
+	struct resource *res;  /* Resource from DT */
 	int ret;
 	const struct of_device_id *match;
 	const struct dw_plat_pcie_of_data *data;
 	enum dw_pcie_device_mode mode;
 
-        printk(KERN_INFO "PCIE:BAIKAL  start - dw_plat_pcie_probe() \n");
-        if (dev == 0)  printk(KERN_INFO "PCIE:BAIKAL  dw_plat_pcie_probe() :dev==0\n");
-
-
 	match = of_match_device(dw_plat_pcie_of_match, dev);
-	if (!match) {
-        printk  (KERN_INFO  "%s: PCIE:BAIKAL - error of of_match_device() \n ",__func__);
+	if (!match)
 		return -EINVAL;
-    }
 
 	data = (struct dw_plat_pcie_of_data *)match->data;
 	mode = (enum dw_pcie_device_mode)data->mode;
+
 	dw_plat_pcie = devm_kzalloc(dev, sizeof(*dw_plat_pcie), GFP_KERNEL);
-	if (!dw_plat_pcie) {
-        //
+	if (!dw_plat_pcie)
 		return -ENOMEM;
-    }
+
 	pci = devm_kzalloc(dev, sizeof(*pci), GFP_KERNEL);
 	if (!pci)
 		return -ENOMEM;
@@ -315,13 +216,6 @@ static int dw_plat_pcie_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, dw_plat_pcie);
 
 	switch (dw_plat_pcie->mode) {
-    if (dw_plat_pcie->mode == DW_PCIE_RC_TYPE)
-      printk (KERN_INFO  "%s  PCIE:BAIKAL - selected \'DW_PCIE_RC_TYPE\' \n", __func__);
-    else
-      printk (KERN_INFO  "%s  PCIE:BAIKAL - selected \'DW_PCIE_EP_TYPE\' \n", __func__);
-      
-
-
 	case DW_PCIE_RC_TYPE:
 		if (!IS_ENABLED(CONFIG_PCIE_DW_PLAT_HOST))
 			return -ENODEV;
@@ -341,9 +235,9 @@ static int dw_plat_pcie_probe(struct platform_device *pdev)
 	default:
 		dev_err(dev, "INVALID device type %d\n", dw_plat_pcie->mode);
 	}
-    printk(KERN_INFO "PCIE:BAIKAL  end - dw_plat_pcie_probe() SUCCESS\n");
+
 	return 0;
-}    ****/
+}
 
 static const struct dw_plat_pcie_of_data dw_plat_pcie_rc_of_data = {
 	.mode = DW_PCIE_RC_TYPE,
@@ -356,13 +250,12 @@ static const struct dw_plat_pcie_of_data dw_plat_pcie_ep_of_data = {
 static const struct of_device_id dw_plat_pcie_of_match[] = {
 	{
 		.compatible = "snps,dw-pcie",
-		//.data = &dw_plat_pcie_rc_of_data,
+		.data = &dw_plat_pcie_rc_of_data,
 	},
-/*
 	{
 		.compatible = "snps,dw-pcie-ep",
 		.data = &dw_plat_pcie_ep_of_data,
-	},*/
+	},
 	{},
 };
 
@@ -370,7 +263,7 @@ static struct platform_driver dw_plat_pcie_driver = {
 	.driver = {
 		.name	= "dw-pcie",
 		.of_match_table = dw_plat_pcie_of_match,
-		//.suppress_bind_attrs = true,
+		.suppress_bind_attrs = true,
 	},
 	.probe = dw_plat_pcie_probe,
 };

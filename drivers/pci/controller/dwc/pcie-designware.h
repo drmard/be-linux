@@ -150,7 +150,6 @@ enum dw_pcie_device_mode {
 };
 
 struct dw_pcie_host_ops {
-    int (*link_up)(struct pcie_port *pp);
 	int (*rd_own_conf)(struct pcie_port *pp, int where, int size, u32 *val);
 	int (*wr_own_conf)(struct pcie_port *pp, int where, int size, u32 val);
 	int (*rd_other_conf)(struct pcie_port *pp, struct pci_bus *bus,
@@ -161,37 +160,34 @@ struct dw_pcie_host_ops {
 	void (*scan_bus)(struct pcie_port *pp);
 	void (*set_num_vectors)(struct pcie_port *pp);
 	int (*msi_host_init)(struct pcie_port *pp);
-    //int (*msi_host_init)(struct pcie_port *pp, struct msi_controller *chip);
 };
 
 struct pcie_port {
-    struct device		*dev;
-	u8			         root_bus_nr;
-    void __iomem         *dbi_base;
-	u64			         cfg0_base;
-	void __iomem	    *va_cfg0_base;
-	u32			         cfg0_size;
-	u64			         cfg1_base;
-	void __iomem	    *va_cfg1_base;
-	u32			         cfg1_size;
-	resource_size_t	     io_base;
-	phys_addr_t		     io_bus_addr;
-	u32			         io_size;
-	u64			         mem_base;
-	phys_addr_t		     mem_bus_addr;
-	u32			         mem_size;
+	u8			root_bus_nr;
+	u64			cfg0_base;
+	void __iomem		*va_cfg0_base;
+	u32			cfg0_size;
+	u64			cfg1_base;
+	void __iomem		*va_cfg1_base;
+	u32			cfg1_size;
+	resource_size_t		io_base;
+	phys_addr_t		io_bus_addr;
+	u32			io_size;
+	u64			mem_base;
+	phys_addr_t		mem_bus_addr;
+	u32			mem_size;
 	struct resource		*cfg;
 	struct resource		*io;
 	struct resource		*mem;
 	struct resource		*busn;
-	int			         irq;
+	int			irq;
 	const struct dw_pcie_host_ops *ops;
-	int			                   msi_irq;
-	struct irq_domain	          *irq_domain;
-	struct irq_domain	          *msi_domain;
-	dma_addr_t		               msi_data;
-	struct page	        	      *msi_page;
-	struct irq_chip		          *msi_irq_chip;
+	int			msi_irq;
+	struct irq_domain	*irq_domain;
+	struct irq_domain	*msi_domain;
+	dma_addr_t		msi_data;
+	struct page		*msi_page;
+	struct irq_chip		*msi_irq_chip;
 	u32			num_vectors;
 	u32			irq_mask[MAX_MSI_CTRLS];
 	struct pci_bus		*root_bus;
@@ -251,13 +247,12 @@ struct dw_pcie {
 	void __iomem		*dbi_base2;
 	/* Used when iatu_unroll_enabled is true */
 	void __iomem		*atu_base;
-
-	u32			         num_viewport;
-	u8			         iatu_unroll_enabled;
-	struct pcie_port	      pp;
-	struct dw_pcie_ep	      ep;
+	u32			num_viewport;
+	u8			iatu_unroll_enabled;
+	struct pcie_port	pp;
+	struct dw_pcie_ep	ep;
 	const struct dw_pcie_ops *ops;
-	unsigned int		      version;
+	unsigned int		version;
 };
 
 #define to_dw_pcie_from_pp(port) container_of((port), struct dw_pcie, pp)
