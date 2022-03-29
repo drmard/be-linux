@@ -1045,11 +1045,6 @@ struct xgbe_prv_data {
 	struct phy_device *phydev;
 #endif
 
-#ifdef CONFIG_MV_MDIO_GPIO
-	// device represented mv88x5113 on mv-mdio-gpio bus
-	struct phy_device *mv_phydev;
-#endif
-
 	/* Version related data */
 	struct xgbe_version_data *vdata;
 

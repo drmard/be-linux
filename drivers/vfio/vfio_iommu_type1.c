@@ -24,7 +24,6 @@
 #include <linux/compat.h>
 #include <linux/device.h>
 #include <linux/fs.h>
-#include <linux/highmem.h>
 #include <linux/iommu.h>
 #include <linux/module.h>
 #include <linux/mm.h>
@@ -340,11 +339,9 @@ static int follow_fault_pfn(struct vm_area_struct *vma, struct mm_struct *mm,
 			    unsigned long vaddr, unsigned long *pfn,
 			    bool write_fault)
 {
-	pte_t *ptep;
-	spinlock_t *ptl;
 	int ret;
 
-	ret = follow_pte(vma->vm_mm, vaddr, &ptep, &ptl);
+	ret = follow_pfn(vma, vaddr, pfn);
 	if (ret) {
 		bool unlocked = false;
 
@@ -358,17 +355,9 @@ static int follow_fault_pfn(struct vm_area_struct *vma, struct mm_struct *mm,
 		if (ret)
 			return ret;
 
-		ret = follow_pte(vma->vm_mm, vaddr, &ptep, &ptl);
-		if (ret)
-			return ret;
+		ret = follow_pfn(vma, vaddr, pfn);
 	}
 
-	if (write_fault && !pte_write(*ptep))
-		ret = -EFAULT;
-	else
-		*pfn = pte_pfn(*ptep);
-
-	pte_unmap_unlock(ptep, ptl);
 	return ret;
 }
 
@@ -877,7 +866,6 @@ static long vfio_unmap_unpin(struct vfio_iommu *iommu, struct vfio_dma *dma,
 
 static void vfio_remove_dma(struct vfio_iommu *iommu, struct vfio_dma *dma)
 {
-	WARN_ON(!RB_EMPTY_ROOT(&dma->pfn_list));
 	vfio_unmap_unpin(iommu, dma, true);
 	vfio_unlink_dma(iommu, dma);
 	put_task_struct(dma->task);
@@ -1986,6 +1974,23 @@ static void vfio_iommu_unmap_unpin_reaccount(struct vfio_iommu *iommu)
 	}
 }
 
+static void vfio_sanity_check_pfn_list(struct vfio_iommu *iommu)
+{
+	struct rb_node *n;
+
+	n = rb_first(&iommu->dma_list);
+	for (; n; n = rb_next(n)) {
+		struct vfio_dma *dma;
+
+		dma = rb_entry(n, struct vfio_dma, node);
+
+		if (WARN_ON(!RB_EMPTY_ROOT(&dma->pfn_list)))
+			break;
+	}
+	/* mdev vendor driver must unregister notifier */
+	WARN_ON(iommu->notifier.head);
+}
+
 /*
  * Called when a domain is removed in detach. It is possible that
  * the removed domain decided the iova aperture window. Modify the
@@ -2083,10 +2088,10 @@ static void vfio_iommu_type1_detach_group(void *iommu_data,
 			kfree(group);
 
 			if (list_empty(&iommu->external_domain->group_list)) {
-				if (!IS_IOMMU_CAP_DOMAIN_IN_CONTAINER(iommu)) {
-					WARN_ON(iommu->notifier.head);
+				vfio_sanity_check_pfn_list(iommu);
+
+				if (!IS_IOMMU_CAP_DOMAIN_IN_CONTAINER(iommu))
 					vfio_iommu_unmap_unpin_all(iommu);
-				}
 
 				kfree(iommu->external_domain);
 				iommu->external_domain = NULL;
@@ -2119,12 +2124,10 @@ static void vfio_iommu_type1_detach_group(void *iommu_data,
 		 */
 		if (list_empty(&domain->group_list)) {
 			if (list_is_singular(&iommu->domain_list)) {
-				if (!iommu->external_domain) {
-					WARN_ON(iommu->notifier.head);
+				if (!iommu->external_domain)
 					vfio_iommu_unmap_unpin_all(iommu);
-				} else {
+				else
 					vfio_iommu_unmap_unpin_reaccount(iommu);
-				}
 			}
 			iommu_domain_free(domain->domain);
 			list_del(&domain->next);
@@ -2198,6 +2201,7 @@ static void vfio_iommu_type1_release(void *iommu_data)
 
 	if (iommu->external_domain) {
 		vfio_release_domain(iommu->external_domain, true);
+		vfio_sanity_check_pfn_list(iommu);
 		kfree(iommu->external_domain);
 	}
 

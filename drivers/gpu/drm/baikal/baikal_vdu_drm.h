@@ -18,8 +18,6 @@
 #include <drm/drm_gem.h>
 #include <drm/drm_simple_kms_helper.h>
 #include <linux/workqueue.h>
-#include <linux/gpio.h>
-#include <linux/backlight.h>
 
 /* Append new drm mode definition here, align with libdrm definition */
 #define DRM_MODE_SCALE_NO_SCALE	2
@@ -43,22 +41,13 @@ struct baikal_vdu_private {
 	spinlock_t lock;
 	u32 counters[20];
 	int mode_fixup;
-	int mode_override;
 	int type;
 	int ep_count;
 	u32 fb_addr;
 	u32 fb_end;
 	struct delayed_work update_work;
-
-	/* backlight */
-	struct gpio_desc *enable_gpio;
-	struct backlight_device *bl_dev;
-
-	int min_brightness;
-	int brightness_step;
-
-	bool brightness_on;
 };
+
 
 /* CRTC Functions */
 int baikal_vdu_crtc_create(struct drm_device *dev);
@@ -68,9 +57,6 @@ int baikal_vdu_primary_plane_init(struct drm_device *dev);
 
 /* Connector Functions */
 int baikal_vdu_lvds_connector_create(struct drm_device *dev);
-
-/* Backlight Functions */
-int baikal_vdu_backlight_create(struct drm_device *drm);
 
 /* Debugfs functions */
 int baikal_vdu_debugfs_init(struct drm_minor *minor);

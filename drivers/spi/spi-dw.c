@@ -196,7 +196,6 @@ static void dw_writer(struct dw_spi *dws)
 		dw_write_io_reg(dws, DW_SPI_DR, txw);
 		dws->tx += dws->n_bytes;
 	}
-	dw_writel(dws, DW_SPI_SER, 1);
 	spin_unlock(&dws->buf_lock);
 }
 

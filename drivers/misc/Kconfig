@@ -467,14 +467,14 @@ config PVPANIC
 	  (guest) communicate panic events to the host.
 
 config TP_BMC
-	tristate "T-Platforms Baikal-T(1)/M BMC"
+	tristate "T-platforms Baikal-T(1)/M BMC"
 	depends on I2C && SYSFS
 	depends on OF
 	select PINCTRL
 	select GENERIC_PINCONF
 	select SERIO
 	help
-	  Say Y here if you want to build a driver for T-Platforms BMC devices
+	  Say Y here if you want to build a driver for T-platforms BMC devices
 	  embedded into the boards with Baikal-T(1)/M processors. The device main
 	  purpose is the CPU kick-starting as well as some additional side-way
 	  functionality like power on/off buttons state tracing and full device

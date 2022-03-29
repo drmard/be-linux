@@ -613,6 +613,13 @@ static int azx_pcm_open(struct snd_pcm_substream *substream)
 				     20,
 				     178000000);
 
+	/* by some reason, the playback stream stalls on PulseAudio with
+	 * tsched=1 when a capture stream triggers.  Until we figure out the
+	 * real cause, disable tsched mode by telling the PCM info flag.
+	 */
+	if (chip->driver_caps & AZX_DCAPS_AMD_WORKAROUND)
+		runtime->hw.info |= SNDRV_PCM_INFO_BATCH;
+
 	if (chip->align_buffer_size)
 		/* constrain buffer sizes to be multiple of 128
 		   bytes. This is more efficient in terms of memory
@@ -1272,21 +1279,21 @@ int azx_probe_codecs(struct azx *chip, unsigned int max_slots)
 	for (c = 0; c < max_slots; c++) {
 		if ((bus->codec_mask & (1 << c)) & chip->codec_probe_mask) {
 			if (probe_codec(chip, c) < 0) {
-					/* Some BIOSen give you wrong codec addresses
-					 * that don't exist
-					 */
-					dev_warn(chip->card->dev,
-						"Codec #%d probe error; disabling it...\n", c);
-					bus->codec_mask &= ~(1 << c);
-					/* More badly, accessing to a non-existing
-					 * codec often screws up the controller chip,
-					 * and disturbs the further communications.
-					 * Thus if an error occurs during probing,
-					 * better to reset the controller chip to
-					 * get back to the sanity state.
-					 */
-					azx_stop_chip(chip);
-					azx_init_chip(chip, true);
+				/* Some BIOSen give you wrong codec addresses
+				 * that don't exist
+				 */
+				dev_warn(chip->card->dev,
+					 "Codec #%d probe error; disabling it...\n", c);
+				bus->codec_mask &= ~(1 << c);
+				/* More badly, accessing to a non-existing
+				 * codec often screws up the controller chip,
+				 * and disturbs the further communications.
+				 * Thus if an error occurs during probing,
+				 * better to reset the controller chip to
+				 * get back to the sanity state.
+				 */
+				azx_stop_chip(chip);
+				azx_init_chip(chip, true);
 			}
 		}
 	}
