@@ -57,7 +57,7 @@ static enum drm_mode_status baikal_hdmi_mode_valid(struct drm_connector *con,
 {
 	if (mode->clock < 13500)
 		return MODE_CLOCK_LOW;
-	if (mode->clock >= 340000)
+	if (mode->clock >= 600000)
 		return MODE_CLOCK_HIGH;
 	if (fixed_clock && mode->clock != fixed_clock)
 		return MODE_BAD;

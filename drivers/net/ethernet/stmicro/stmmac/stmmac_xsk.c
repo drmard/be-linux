@@ -566,10 +566,8 @@ static int stmmac_run_xdp_zc(struct stmmac_priv *priv, struct xdp_buff *xdp)
 		break;
 	default:
 		bpf_warn_invalid_xdp_action(act);
-		/* fall through */
 	case XDP_ABORTED:
 		trace_xdp_exception(priv->dev, xdp_prog, act);
-		/* fall through */
 	case XDP_DROP:
 		result = STMMAC_XDP_CONSUMED;
 		break;
@@ -1257,6 +1255,7 @@ static int stmmac_umem_enable(struct stmmac_priv *priv, struct xdp_umem *umem,
 
 	DBG("%s-->\n", __FUNCTION__);
 
+
 	if (qid >= priv->plat->rx_queues_to_use)
 		return -EINVAL;
 
@@ -1327,7 +1326,7 @@ static int stmmac_umem_disable(struct stmmac_priv *priv, u16 qid)
 	struct xdp_umem *umem;
 	struct stmmac_rx_queue *rx_q = &priv->rx_queue[qid];
 	bool if_running;
-
+	
 	DBG("%s-->\n", __FUNCTION__);
 
 	umem = xdp_get_umem_from_qid(priv->dev, qid);

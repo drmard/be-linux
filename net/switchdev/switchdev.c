@@ -461,11 +461,10 @@ static int __switchdev_handle_port_obj_add(struct net_device *dev,
 	extack = switchdev_notifier_info_to_extack(&port_obj_info->info);
 
 	if (check_cb(dev)) {
-		err = add_cb(dev, port_obj_info->obj, port_obj_info->trans,
-			     extack);
-		if (err != -EOPNOTSUPP)
-			port_obj_info->handled = true;
-		return err;
+		/* This flag is only checked if the return value is success. */
+		port_obj_info->handled = true;
+		return add_cb(dev, port_obj_info->obj, port_obj_info->trans,
+			      extack);
 	}
 
 	/* Switch ports might be stacked under e.g. a LAG. Ignore the
@@ -476,9 +475,6 @@ static int __switchdev_handle_port_obj_add(struct net_device *dev,
 	 * necessary to go through this helper.
 	 */
 	netdev_for_each_lower_dev(dev, lower_dev, iter) {
-		if (netif_is_bridge_master(lower_dev))
-			continue;
-
 		err = __switchdev_handle_port_obj_add(lower_dev, port_obj_info,
 						      check_cb, add_cb);
 		if (err && err != -EOPNOTSUPP)
@@ -517,10 +513,9 @@ static int __switchdev_handle_port_obj_del(struct net_device *dev,
 	int err = -EOPNOTSUPP;
 
 	if (check_cb(dev)) {
-		err = del_cb(dev, port_obj_info->obj);
-		if (err != -EOPNOTSUPP)
-			port_obj_info->handled = true;
-		return err;
+		/* This flag is only checked if the return value is success. */
+		port_obj_info->handled = true;
+		return del_cb(dev, port_obj_info->obj);
 	}
 
 	/* Switch ports might be stacked under e.g. a LAG. Ignore the
@@ -531,9 +526,6 @@ static int __switchdev_handle_port_obj_del(struct net_device *dev,
 	 * necessary to go through this helper.
 	 */
 	netdev_for_each_lower_dev(dev, lower_dev, iter) {
-		if (netif_is_bridge_master(lower_dev))
-			continue;
-
 		err = __switchdev_handle_port_obj_del(lower_dev, port_obj_info,
 						      check_cb, del_cb);
 		if (err && err != -EOPNOTSUPP)
@@ -571,10 +563,9 @@ static int __switchdev_handle_port_attr_set(struct net_device *dev,
 	int err = -EOPNOTSUPP;
 
 	if (check_cb(dev)) {
-		err = set_cb(dev, port_attr_info->attr, port_attr_info->trans);
-		if (err != -EOPNOTSUPP)
-			port_attr_info->handled = true;
-		return err;
+		port_attr_info->handled = true;
+		return set_cb(dev, port_attr_info->attr,
+			      port_attr_info->trans);
 	}
 
 	/* Switch ports might be stacked under e.g. a LAG. Ignore the
@@ -585,9 +576,6 @@ static int __switchdev_handle_port_attr_set(struct net_device *dev,
 	 * necessary to go through this helper.
 	 */
 	netdev_for_each_lower_dev(dev, lower_dev, iter) {
-		if (netif_is_bridge_master(lower_dev))
-			continue;
-
 		err = __switchdev_handle_port_attr_set(lower_dev, port_attr_info,
 						       check_cb, set_cb);
 		if (err && err != -EOPNOTSUPP)

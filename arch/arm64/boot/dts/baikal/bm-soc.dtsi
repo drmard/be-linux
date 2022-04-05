@@ -1,30 +1,76 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Device tree include file for BE-M1000 SoC
+ * Device tree include file BE-M1000 SoC
  * Copyright (C) 2017-2021 Baikal Electronics, JSC
  */
 
-#include "bm1000-clocks.dtsi"
+#include "bm-clocks.dtsi"
+#include "bm-cpufreq.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 
+/*
+ * ! ACHTUNG !
+ * ARM GIC v3 bindings assume interrupts (in each range) counting from 0:
+ * PPI: 0..15
+ * SPI: 0..987
+ * Baikal-M documentation ("Interrupt map") places all interrupts into the
+ * linear map: SGI (0..15), PPI (16..31), SPI(32-1019).
+ * So real interrupts in this device tree must be calculated
+ * in the following manner:
+ * PPI_real = PPI_from_documentation - 16
+ * SPI_real = SPI_from_documentation - 32
+ */
+
 / {
-	compatible = "baikal,bm1000";
+	compatible = "baikal,arm", "baikal,baikal-m-soc", "simple-bus";
 	#address-cells = <2>;
 	#size-cells = <2>;
 	interrupt-parent = <&gic>;
 
 	aliases {
-		i2c1	= &i2c1;
-		i2c2	= &i2c2;
-		i2c3	= &smbus1;
-		i2c4	= &smbus2;
-		serial0	= &uart1;
-		serial1	= &uart2;
+		ethernet1		= &gmac0;
+		ethernet2		= &gmac1;
+		ethernet3		= &xgmac0;
+		ethernet4		= &xgmac1;
+		gic			= &gic;
+		gpio			= &gpio;
+		i2c0			= &i2c0;
+		i2c1			= &i2c1;
+		i2s			= &i2s;
+		memory-controller1	= &ddr1;
+		memory-controller2	= &ddr2;
+		mmc0			= &mmc0;
+		pvt0			= &pvt0;
+		pvt1			= &pvt1;
+		pvt2			= &pvt2;
+		pvt3			= &pvt3;
+		pvt_mali		= &pvt_mali;
+		sata0			= &sata0;
+		sata1			= &sata1;
+		serial0			= &uart0;
+		serial1			= &uart1;
+		smbus0			= &smbus0;
+		smbus1			= &smbus1;
+		spi			= &spi0;
+		ssi0			= &spi0;
+		timer1			= &timer1;
+		timer2			= &timer2;
+		timer3			= &timer3;
+		timer4			= &timer4;
+		usb2			= &usb2;
+		usb3			= &usb3;
+		vdec			= &vdec;
+		vdu_lvds		= &vdu0;
 	};
 
+	/*
+	 * ! ACHTUNG !
+	 * Enable method for Baikal-M CPU cores is not yet clearly defined
+	 * This "psci" node is left here for compliance with linux DTS bindings
+	 */
 	psci {
-		compatible = "arm,psci-1.0", "arm,psci-0.2";
+		compatible = "arm,psci-0.2";
 		method = "smc";
 	};
 
@@ -32,9 +78,45 @@
 		#address-cells = <2>;
 		#size-cells = <0>;
 
-		/* Do not use 'cpu-map'. It leads to wrong topology. */
+		cpu-map {
+			cluster0 {
+				core0 {
+					cpu = <&CPU0>;
+				};
+				core1 {
+					cpu = <&CPU1>;
+				};
+			};
 
-		cpu0: cpu@0 {
+			cluster1 {
+				core0 {
+					cpu = <&CPU2>;
+				};
+				core1 {
+					cpu = <&CPU3>;
+				};
+			};
+
+			cluster2 {
+				core0 {
+					cpu = <&CPU4>;
+				};
+				core1 {
+					cpu = <&CPU5>;
+				};
+			};
+
+			cluster3 {
+				core0 {
+					cpu = <&CPU6>;
+				};
+				core1 {
+					cpu = <&CPU7>;
+				};
+			};
+		};
+
+		CPU0: cpu@0 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
 			reg = <0x0 0x0>;
@@ -45,14 +127,13 @@
 			d-cache-size = <0x8000>;
 			d-cache-line-size = <64>;
 			d-cache-sets = <256>;
-			next-level-cache = <&cluster0_l2>;
 			clocks = <&cmu_cluster0>;
+			next-level-cache = <&A57_L2>;
 			clock-names = "baikal-ca57_cmu";
 			operating-points-v2 = <&cluster0_opp>;
-			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
-		cpu1: cpu@1 {
+		CPU1: cpu@1 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
 			reg = <0x0 0x1>;
@@ -63,14 +144,13 @@
 			d-cache-size = <0x8000>;
 			d-cache-line-size = <64>;
 			d-cache-sets = <256>;
-			next-level-cache = <&cluster0_l2>;
 			clocks = <&cmu_cluster0>;
+			next-level-cache = <&A57_L2>;
 			clock-names = "baikal-ca57_cmu";
 			operating-points-v2 = <&cluster0_opp>;
-			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
-		cpu2: cpu@100 {
+		CPU2: cpu@100 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
 			reg = <0x0 0x100>;
@@ -81,14 +161,13 @@
 			d-cache-size = <0x8000>;
 			d-cache-line-size = <64>;
 			d-cache-sets = <256>;
-			next-level-cache = <&cluster1_l2>;
 			clocks = <&cmu_cluster1>;
+			next-level-cache = <&A57_L2>;
 			clock-names = "baikal-ca57_cmu";
 			operating-points-v2 = <&cluster1_opp>;
-			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
-		cpu3: cpu@101 {
+		CPU3: cpu@101 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
 			reg = <0x0 0x101>;
@@ -99,14 +178,13 @@
 			d-cache-size = <0x8000>;
 			d-cache-line-size = <64>;
 			d-cache-sets = <256>;
-			next-level-cache = <&cluster1_l2>;
 			clocks = <&cmu_cluster1>;
+			next-level-cache = <&A57_L2>;
 			clock-names = "baikal-ca57_cmu";
 			operating-points-v2 = <&cluster1_opp>;
-			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
-		cpu4: cpu@200 {
+		CPU4: cpu@200 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
 			reg = <0x0 0x200>;
@@ -117,14 +195,13 @@
 			d-cache-size = <0x8000>;
 			d-cache-line-size = <64>;
 			d-cache-sets = <256>;
-			next-level-cache = <&cluster2_l2>;
 			clocks = <&cmu_cluster2>;
+			next-level-cache = <&A57_L2>;
 			clock-names = "baikal-ca57_cmu";
 			operating-points-v2 = <&cluster2_opp>;
-			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
-		cpu5: cpu@201 {
+		CPU5: cpu@201 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
 			reg = <0x0 0x201>;
@@ -135,14 +212,13 @@
 			d-cache-size = <0x8000>;
 			d-cache-line-size = <64>;
 			d-cache-sets = <256>;
-			next-level-cache = <&cluster2_l2>;
 			clocks = <&cmu_cluster2>;
+			next-level-cache = <&A57_L2>;
 			clock-names = "baikal-ca57_cmu";
 			operating-points-v2 = <&cluster2_opp>;
-			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
-		cpu6: cpu@300 {
+		CPU6: cpu@300 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
 			reg = <0x0 0x300>;
@@ -153,14 +229,13 @@
 			d-cache-size = <0x8000>;
 			d-cache-line-size = <64>;
 			d-cache-sets = <256>;
-			next-level-cache = <&cluster3_l2>;
 			clocks = <&cmu_cluster3>;
+			next-level-cache = <&A57_L2>;
 			clock-names = "baikal-ca57_cmu";
 			operating-points-v2 = <&cluster3_opp>;
-			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
-		cpu7: cpu@301 {
+		CPU7: cpu@301 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
 			reg = <0x0 0x301>;
@@ -171,76 +246,18 @@
 			d-cache-size = <0x8000>;
 			d-cache-line-size = <64>;
 			d-cache-sets = <256>;
-			next-level-cache = <&cluster3_l2>;
 			clocks = <&cmu_cluster3>;
+			next-level-cache = <&A57_L2>;
 			clock-names = "baikal-ca57_cmu";
 			operating-points-v2 = <&cluster3_opp>;
-			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
-		idle-states {
-			entry-method = "psci";
-
-			CPU_SLEEP: cpu-sleep {
-				compatible = "arm,idle-state";
-				local-timer-stop;
-				arm,psci-suspend-param = <0x0000001>;
-				entry-latency-us = <300>;
-				exit-latency-us = <1200>;
-				min-residency-us = <2000>;
-			};
-		};
-
-		cluster0_l2: l2-cache0 {
+		A57_L2: l2-cache0 {
 			compatible = "cache";
 			cache-size = <0x100000>;
 			cache-line-size = <64>;
 			cache-sets = <1024>;
-			cache-unified;
-			cache-level = <2>;
-			next-level-cache = <&l3>;
 		};
-
-		cluster1_l2: l2-cache1 {
-			compatible = "cache";
-			cache-size = <0x100000>;
-			cache-line-size = <64>;
-			cache-sets = <1024>;
-			cache-unified;
-			cache-level = <2>;
-			next-level-cache = <&l3>;
-		};
-
-		cluster2_l2: l2-cache2 {
-			compatible = "cache";
-			cache-size = <0x100000>;
-			cache-line-size = <64>;
-			cache-sets = <1024>;
-			cache-unified;
-			cache-level = <2>;
-			next-level-cache = <&l3>;
-		};
-
-		cluster3_l2: l2-cache3 {
-			compatible = "cache";
-			cache-size = <0x100000>;
-			cache-line-size = <64>;
-			cache-sets = <1024>;
-			cache-unified;
-			cache-level = <2>;
-			next-level-cache = <&l3>;
-		};
-
-		l3: l3-cache {
-			cache-size = <0x800000>;
-			cache-unified;
-			cache-level = <3>;
-		};
-	};
-
-	pmu {
-		compatible = "arm,cortex-a57-pmu";
-		interrupts = <GIC_PPI 7 IRQ_TYPE_LEVEL_LOW>;
 	};
 
 	timer {
@@ -257,14 +274,51 @@
 		#size-cells = <2>;
 		ranges;
 
-		pcie_lcru: lcru@2000000 {
-			compatible = "syscon";
-			reg = <0x0 0x2000000 0x0 0x80000>;
+		/* DDR: DDR0 (0E200000, 10000, SPI_161-166_?) */
+		ddr1: memory-controller1@0E200000 {
+			compatible = "be,emc", "be,memory-controller";
+			reg = <0x0 0x0E200000 0x0 0x10000>;
+			interrupts = <GIC_SPI 129 IRQ_TYPE_LEVEL_HIGH>, /* ddr dfi alert err */
+				     <GIC_SPI 130 IRQ_TYPE_LEVEL_HIGH>, /* ddr ecc corrected err */
+				     <GIC_SPI 131 IRQ_TYPE_LEVEL_HIGH>, /* ddr ecc uncorrected err */
+				     <GIC_SPI 132 IRQ_TYPE_LEVEL_HIGH>, /* ddr sbr done */
+				     <GIC_SPI 133 IRQ_TYPE_LEVEL_HIGH>, /* ddr ecc corrected err fault */
+				     <GIC_SPI 134 IRQ_TYPE_LEVEL_HIGH>; /* ddr ecc uncorrected err fault */
+
+			clocks = <&soc_smc50mhz>;
+			clock-names = "apb_pclk";
 			status = "disabled";
 		};
 
-		pcie0: pcie@2200000 { /* PCIe x4 #0 */
-			compatible = "baikal,bm1000-pcie", "baikal,pcie-m", "snps,dw-pcie";
+		/* DDR: DDR0_PHY (0E210000, 10000, ?) */
+
+		/* DDR: DDR1 (22200000, 10000, SPI_171-176_?) */
+		ddr2: memory-controller2@22200000 {
+			compatible = "be,emc", "be,memory-controller";
+			reg = <0x0 0x22200000 0x0 0x10000>;
+			interrupts = <GIC_SPI 139 IRQ_TYPE_LEVEL_HIGH>, /* ddr dfi alert err */
+				     <GIC_SPI 140 IRQ_TYPE_LEVEL_HIGH>, /* ddr ecc corrected err */
+				     <GIC_SPI 141 IRQ_TYPE_LEVEL_HIGH>, /* ddr ecc uncorrected err */
+				     <GIC_SPI 142 IRQ_TYPE_LEVEL_HIGH>, /* ddr sbr done */
+				     <GIC_SPI 143 IRQ_TYPE_LEVEL_HIGH>, /* ddr ecc corrected err fault */
+				     <GIC_SPI 144 IRQ_TYPE_LEVEL_HIGH>; /* ddr ecc uncorrected err fault */
+
+			clocks = <&soc_smc50mhz>;
+			clock-names = "apb_pclk";
+			status = "disabled";
+		};
+
+		/* PCIe LCRU */
+		pcie_lcru: lcru@2000000 {
+			compatible = "syscon";
+			reg = <0x0 0x2000000 0x0 0x80000>;
+			/*big-endian;*/
+			status = "disabled";
+		};
+
+		/* PCIe x4 #0 */
+		pcie0: pcie@2200000 {
+			compatible = "baikal,pcie-m", "snps,dw-pcie";
 			reg = <0x0 0x02200000 0x0 0x1000>,   /* RC config space */
 			      <0x0 0x40100000 0x0 0x100000>; /* PCI config space */
 			reg-names = "dbi", "config";
@@ -275,7 +329,7 @@
 			#address-cells = <3>;
 			#size-cells = <2>;
 			device_type = "pci";
-			ranges = <0x81000000 0x0 0x00000000 0x0 0x40200000 0x0 0x100000>,   /* I/O */
+			ranges = <0x81000000 0x0 0x00000000 0x0 0x40200000 0x0 0x00100000>, /* I/O */
 				 <0x82000000 0x0 0x40000000 0x4 0x00000000 0x0 0x40000000>; /* 32b non-prefetchable memory */
 			msi-parent = <&its 0x0>;
 			msi-map = <0x0 &its 0x0 0x10000>;
@@ -285,8 +339,9 @@
 			status = "disabled";
 		};
 
-		pcie1: pcie@2210000 { /* PCIe x4 #1 */
-			compatible = "baikal,bm1000-pcie", "baikal,pcie-m", "snps,dw-pcie";
+		/* PCIe x4 #1 */
+		pcie1: pcie@2210000 {
+			compatible = "baikal,pcie-m", "snps,dw-pcie";
 			reg = <0x0 0x02210000 0x0 0x1000>,   /* RC config space */
 			      <0x0 0x50100000 0x0 0x100000>; /* PCI config space */
 			reg-names = "dbi", "config";
@@ -297,7 +352,7 @@
 			#address-cells = <3>;
 			#size-cells = <2>;
 			device_type = "pci";
-			ranges = <0x81000000 0x0 0x00100000 0x0 0x50000000 0x0 0x100000>,   /* I/O */
+			ranges = <0x81000000 0x0 0x00100000 0x0 0x50000000 0x0 0x00100000>, /* I/O */
 				 <0x82000000 0x0 0x40000000 0x5 0x00000000 0x0 0x40000000>; /* 32b non-prefetchable memory */
 			msi-parent = <&its 0x0>;
 			msi-map = <0x0 &its 0x0 0x10000>;
@@ -307,8 +362,9 @@
 			status = "disabled";
 		};
 
-		pcie2: pcie@2220000 { /* PCIe x8 */
-			compatible = "baikal,bm1000-pcie", "baikal,pcie-m", "snps,dw-pcie";
+		/* PCIe x8 */
+		pcie2: pcie@2220000 {
+			compatible = "baikal,pcie-m", "snps,dw-pcie";
 			reg = <0x0 0x02220000 0x0 0x1000>,   /* RC config space */
 			      <0x0 0x60000000 0x0 0x100000>; /* PCI config space */
 			reg-names = "dbi", "config";
@@ -319,7 +375,7 @@
 			#address-cells = <3>;
 			#size-cells = <2>;
 			device_type = "pci";
-			ranges = <0x81000000 0x0 0x00200000 0x0 0x60100000 0x0 0x100000>,   /* I/O */
+			ranges = <0x81000000 0x0 0x00200000 0x0 0x60100000 0x0 0x00100000>, /* I/O */
 				 <0x82000000 0x0 0x80000000 0x6 0x00000000 0x0 0x80000000>; /* 32b non-prefetchable memory */
 			msi-parent = <&its 0x0>;
 			msi-map = <0x0 &its 0x0 0x10000>;
@@ -329,62 +385,76 @@
 			status = "disabled";
 		};
 
-		ccn: ccn@9000000 {
-			compatible = "arm,ccn-504";
-			reg = <0x0 0x9000000 0 0x1000000>;
-			interrupts = <GIC_SPI 127 IRQ_TYPE_LEVEL_HIGH>;
-		};
-
-		ddr0: memory-controller@e200000 {
-			compatible = "baikal,bm1000-edac-mc";
-			reg = <0x0 0x0e200000 0x0 0x10000>;
-			interrupts = <GIC_SPI 129 IRQ_TYPE_LEVEL_HIGH>, /* dfi_alert_err */
-				     <GIC_SPI 130 IRQ_TYPE_LEVEL_HIGH>, /* ecc_corrected_err */
-				     <GIC_SPI 131 IRQ_TYPE_LEVEL_HIGH>, /* ecc_uncorrected_err */
-				     <GIC_SPI 132 IRQ_TYPE_LEVEL_HIGH>, /* sbr_done */
-				     <GIC_SPI 133 IRQ_TYPE_LEVEL_HIGH>, /* ecc_corrected_err_fault */
-				     <GIC_SPI 134 IRQ_TYPE_LEVEL_HIGH>; /* ecc_uncorrected_err_fault */
-			clocks = <&soc_smc50mhz>;
-			clock-names = "apb_pclk";
+		/* PVT_0: PVT0 (28200000, 10000, SPI_151_H) */
+		pvt0: pvt0@28200000 {
+			compatible = "baikal,pvt";
+			reg = <0x0 0x28200000 0x0 0x10000>;
+			pvt_id = <0>;
+			interrupts = <GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 		};
 
-		ddr1: memory-controller@22200000 {
-			compatible = "baikal,bm1000-edac-mc";
-			reg = <0x0 0x22200000 0x0 0x10000>;
-			interrupts = <GIC_SPI 139 IRQ_TYPE_LEVEL_HIGH>, /* dfi_alert_err */
-				     <GIC_SPI 140 IRQ_TYPE_LEVEL_HIGH>, /* ecc_corrected_err */
-				     <GIC_SPI 141 IRQ_TYPE_LEVEL_HIGH>, /* ecc_uncorrected_err */
-				     <GIC_SPI 142 IRQ_TYPE_LEVEL_HIGH>, /* sbr_done */
-				     <GIC_SPI 143 IRQ_TYPE_LEVEL_HIGH>, /* ecc_corrected_err_fault */
-				     <GIC_SPI 144 IRQ_TYPE_LEVEL_HIGH>; /* ecc_uncorrected_err_fault */
-			clocks = <&soc_smc50mhz>;
-			clock-names = "apb_pclk";
+		/* PVT_1: PVT1 (0C200000, 10000, SPI_153_H) */
+		pvt1: pvt1@0C200000 {
+			compatible = "baikal,pvt";
+			reg = <0x0 0x0C200000 0x0 0x10000>;
+			pvt_id = <1>;
+			interrupts = <GIC_SPI 121 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 		};
 
-		gpio32: gpio@20200000 {
+		/* PVT_2: PVT2 (0A200000, 10000, SPI_155_H) */
+		pvt2: pvt2@0A200000 {
+			compatible = "baikal,pvt";
+			reg = <0x0 0x0A200000 0x0 0x10000>;
+			pvt_id = <2>;
+			interrupts = <GIC_SPI 123 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		/* PVT_3: PVT3 (26200000, 10000, SPI_157_H) */
+		pvt3: pvt3@26200000 {
+			compatible = "baikal,pvt";
+			reg = <0x0 0x26200000 0x0 0x10000>;
+			pvt_id = <3>;
+			interrupts = <GIC_SPI 125 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		/* PVT_MALI: PVT (2A060000, 10000, SPI_253_H) */
+		pvt_mali: pvt_mali@2A060000 {
+			compatible = "baikal,pvt";
+			reg = <0x0 0x2A060000 0x0 0x10000>;
+			pvt_id = <4>;
+			interrupts = <GIC_SPI 221 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		/* AVLSP: GPIO32 (20200000, 10000, SPI_131_H) */
+		gpio: gpio@20200000 {
 			compatible = "snps,dw-apb-gpio";
-			reg = <0x0 0x20200000 0x0 0x1000>;
+			reg = <0x0 0x20200000 0x0 0x10000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+			interrupts = <GIC_SPI 99 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 
 			porta: gpio-controller@0 {
 				compatible = "snps,dw-apb-gpio-port";
-				gpio-controller;
 				#gpio-cells = <2>;
+				gpio-controller;
 				snps,nr-gpios = <32>;
 				reg = <0>;
-				interrupt-controller;
 				#interrupt-cells = <2>;
+				interrupt-controller;
 				interrupts = <GIC_SPI 99 IRQ_TYPE_LEVEL_HIGH>;
 			};
 		};
 
-		spi: spi@20210000 {
-			compatible = "snps,dw-apb-ssi";
-			reg = <0x0 0x20210000 0x0 0x1000>;
+		/* AVLSP: SPI (20210000, 10000, SPI_132_H) */
+		spi0: spi@20210000 {
+			compatible = "snps,dw-apb-ssi", "snps,dw-spi";
+			reg = <0x0 0x20210000 0x0 0x10000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			interrupts = <GIC_SPI 100 IRQ_TYPE_LEVEL_HIGH>;
@@ -393,6 +463,7 @@
 			status = "disabled";
 		};
 
+		/* AVLSP: I2S (20220000, 1000, SPI_136-139_H) */
 		i2s: i2s@20220000 {
 			compatible = "snps,designware-i2s";
 			reg = <0x0 0x20220000 0x0 0x10000>;
@@ -400,8 +471,7 @@
 				     <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>, /* rx_or */
 				     <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>, /* tx_emp */
 				     <GIC_SPI 107 IRQ_TYPE_LEVEL_HIGH>; /* tx_or */
-			/*dmas = <&lsdma 0 1 0>,*/
-			/*       <&lsdma 1 0 1>;*/
+			/*dmas = <&dma 2>, <&dma 3>;*/
 			/*dma-names = "tx", "rx";*/
 			/*#sound-dai-cells = <0>;*/
 			clocks = <&soc_tmp_clk>;
@@ -409,20 +479,27 @@
 			status = "disabled";
 		};
 
-		uart1: serial@20230000 {
-			compatible = "snps,dw-apb-uart";
-			reg = <0x0 0x20230000 0x0 0x100>;
+		/* AVLSP: UART1 (20230000, 10000, SPI_133_H) */
+		uart0: serial0@20230000 {
+			compatible = "snps,dw-apb-uart";/*, "snps,uart-16550-compatible";*/
+			reg = <0x0 0x20230000 0x0 0x10000>;
 			interrupts = <GIC_SPI 101 IRQ_TYPE_LEVEL_HIGH>;
 			reg-shift = <2>;
 			reg-io-width = <4>;
 			clocks = <&cmu0_avlsp 1>, <&apb_clk>;
 			clock-names = "soc_uartclk", "apb_pclk";
+			/*dcd-override;*/
+			/*dsr-override;*/
+			/*cts-override;*/
+			/*ri-override;*/
+
 			status = "disabled";
 		};
 
-		uart2: serial@20240000 {
-			compatible = "snps,dw-apb-uart";
-			reg = <0x0 0x20240000 0x0 0x100>;
+		/* AVLSP: UART2 (20240000, 10000, SPI_134_H) */
+		uart1: serial1@20240000 {
+			compatible = "snps,dw-apb-uart";/*, "snps,uart-16550-compatible";*/
+			reg = <0x0 0x20240000 0x0 0x10000>;
 			interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
 			reg-shift = <2>;
 			reg-io-width = <4>;
@@ -431,11 +508,12 @@
 			status = "disabled";
 		};
 
-		i2c1: i2c@20250000 {
+		/* AVLSP: I2C1 (20250000, 10000, SPI_140_H) */
+		i2c0: i2c0@20250000 {
 			compatible = "snps,designware-i2c";
 			#address-cells = <1>;
 			#size-cells = <0>;
-			reg = <0x0 0x20250000 0x0 0x1000>;
+			reg = <0x0 0x20250000 0x0 0x10000>;
 			interrupts = <GIC_SPI 108 IRQ_TYPE_LEVEL_HIGH>;
 			i2c-sda-hold-time-ns = <500>;
 			clock-frequency = <400000>;
@@ -444,11 +522,12 @@
 			status = "disabled";
 		};
 
-		i2c2: i2c@20260000 {
+		/* AVLSP: I2C2 (20260000, 10000, SPI_141_H) */
+		i2c1: i2c1@20260000 {
 			compatible = "snps,designware-i2c";
 			#address-cells = <1>;
 			#size-cells = <0>;
-			reg = <0x0 0x20260000 0x0 0x1000>;
+			reg = <0x0 0x20260000 0x0 0x10000>;
 			interrupts = <GIC_SPI 109 IRQ_TYPE_LEVEL_HIGH>;
 			i2c-sda-hold-time-ns = <500>;
 			clock-frequency = <400000>;
@@ -457,11 +536,12 @@
 			status = "disabled";
 		};
 
-		smbus1: i2c@20270000 {
-			compatible = "baikal,bm1000-smbus", "be,smbus";
+		/* AVLSP: SMBus1 (20270000, 10000, SPI_142_?) */
+		smbus0: smbus0@20270000 {
+			compatible = "be,smbus";
 			#address-cells = <1>;
 			#size-cells = <0>;
-			reg = <0x0 0x20270000 0x0 0x1000>;
+			reg = <0x0 0x20270000 0x0 0x10000>;
 			interrupts = <GIC_SPI 110 IRQ_TYPE_LEVEL_HIGH>;
 			clock-frequency = <100000>;
 			clocks = <&smbus_clk>;
@@ -469,11 +549,12 @@
 			status = "disabled";
 		};
 
-		smbus2: i2c@20280000 {
-			compatible = "baikal,bm1000-smbus", "be,smbus";
+		/* AVLSP: SMBus2 (20280000, 10000, SPI_143_?) */
+		smbus1: smbus1@20280000 {
+			compatible = "be,smbus";
 			#address-cells = <1>;
 			#size-cells = <0>;
-			reg = <0x0 0x20280000 0x0 0x1000>;
+			reg = <0x0 0x20280000 0x0 0x10000>;
 			interrupts = <GIC_SPI 111 IRQ_TYPE_LEVEL_HIGH>;
 			clock-frequency = <100000>;
 			clocks = <&smbus_clk>;
@@ -481,232 +562,135 @@
 			status = "disabled";
 		};
 
-		timer1: timer@20290000 {
+		/* AVLSP: Timers (20290000, 10000, SPI_127_L) */
+		timer1: timer1@20290000 {
 			compatible = "snps,dw-apb-timer-osc";
 			reg = <0x0 0x20290000 0x0 0x14>;
 			interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>;
-			clock-frequency = <50000000>;
+			clock-frequency  = <50000000>;
 			clocks = <&timer1_clk>;
 			clock-names = "soc_timer1clk";
 			status = "disabled";
 		};
 
-		timer2: timer@20290014 {
+		/* AVLSP: Timers (20290000, 10000, SPI_128_L) */
+		timer2: timer2@20290014 {
 			compatible = "snps,dw-apb-timer-sp";
 			reg = <0x0 0x20290014 0x0 0x14>;
 			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
-			clock-frequency = <50000000>;
+			clock-frequency  = <50000000>;
 			clocks = <&timer2_clk>;
 			clock-names = "soc_timer2clk";
 			status = "disabled";
 		};
 
-		timer3: timer@20290028 {
+		/* AVLSP: Timers (20290000, 10000, SPI_129_L) */
+		timer3: timer3@20290028 {
 			compatible = "snps,dw-apb-timer-sp";
 			reg = <0x0 0x20290028 0x0 0x14>;
 			interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH>;
-			clock-frequency = <50000000>;
+			clock-frequency  = <50000000>;
 			clocks = <&timer3_clk>;
 			clock-names = "soc_timer3clk";
 			status = "disabled";
 		};
 
-		timer4: timer@2029003c {
+		/* AVLSP: Timers (20290000, 10000, SPI_130_L) */
+		timer4: timer4@2029003C {
 			compatible = "snps,dw-apb-timer-sp";
-			reg = <0x0 0x2029003c 0x0 0x14>;
+			reg = <0x0 0x2029003C 0x0 0x14>;
 			interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
-			clock-frequency = <50000000>;
+			clock-frequency  = <50000000>;
 			clocks = <&timer4_clk>;
 			clock-names = "soc_timer4clk";
 			status = "disabled";
 		};
 
-		espi: spi@202a0000 {
+		/* AVLSP: ESPI (202A0000, 10000, SPI_135_?) */
+		espi0: espi0@202A0000 {
 			compatible = "be,espi";
-			reg = <0x0 0x202a0000 0x0 0x1000>;
+			reg = <0x0 0x202A0000 0x0 0x10000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&cmu0_avlsp 5>;
 			clock-names = "soc_espiclk";
 			status = "disabled";
+
 			/*
-			 * Block Configuration:
-			 * - master/slave
-			 * - 32-bit APB slave
-			 * - tx-fifo = rx-fifo = 256 byte
-			 * - 4 SPI IO channels
-			 * - 8 slave select IO channels
-			 * - DMA - missing
-			 * - M-flash controller - missing
-			 */
+			Block Configuration:
+			master/slave
+			32-bit APB slave
+			tx-fifo = rx-fifo = 256 byte
+			4 SPI IO channels
+			8 slave select IO channels
+			DMA - missing
+			M-flash controller - missing
+			*/
 		};
 
-		lsdma: dma@202b0000 {
+		/* AVLSP: DMAC (202B0000, 10000, SPI_41-80_H) */
+		lsdma: dma@202B0000 {
 			compatible = "snps,dma-spear1340";
-			reg = <0x0 0x202b0000 0x0 0x10000>;
-			interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 12 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 13 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 17 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 20 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 29 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 36 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 45 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 46 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 47 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x0 0x202B0000 0x0 0x10000>;
+// TODO: interrupts
+			interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;
 			dma-channels = <8>;
 			dma-requests = <16>;
 			dma-masters = <2>;
 			#dma-cells = <3>;
-			chan_allocation_order = <0>;
-			chan_priority = <0>;
-			block_size = <0xff>;
-			data-width = <4 16>;
-			clocks = <&cmu0_avlsp 12>;
-			clock-names = "dmac";
-			snps,dma-protection-control = <0>;
+			chan_allocation_order = <1>;
+			chan_priority = <1>;
+			block_size = <0xfff>;
+			data_width = <3 3 0 0>;
+			clocks = <&soc_tmp_clk>;
+			clock-names = "tmpclk";
 			status = "disabled";
 		};
 
-		hda: hda@202c0000 {
-			compatible = "be,cw-hda";
-			reg = <0x0 0x202c0000 0x0 0x1000>;
-			interrupts = <GIC_SPI 54 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&cmu0_avlsp 15>, <&cmu0_avlsp 16>;
-			clock-names = "hda_sys_clk", "hda_clk48";
-			status = "disabled";
-			force-polling-mode;
-			broken-response-irq;
-			increment-codec-address;
-			cyclic-codec-probe;
-		};
+		/* AVLSP: HDA (202C0000, 10000, SPI_86_H) */
 
-		vdu0: vdu@202d0000 {
+		/* AVLSP: VDU (202D0000, 10000, SPI_144-145_?) */
+		vdu0: vdu_lvds@0x202D0000 {
 			compatible = "baikal,vdu";
-			reg = <0x0 0x202d0000 0x0 0x1000>;
+			reg = <0x0 0x202D0000 0x0 0x1000>;
 			interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>, /* VDU INTR */
 				     <GIC_SPI 113 IRQ_TYPE_LEVEL_HIGH>; /* VDU INTR_CDD */
-			clocks = <&cmu1_avlsp_div7>;
-			clock-names = "pclk";
+			clocks = <&cmu1_avlsp_div7>, <&cmu0_avlsp 26>;
+			clock-names = "pclk", "aclk";
 			lvds-out;
 			status = "disabled";
 		};
 
-		mmc: mmc@202e0000 {
+		/* AVLSP: SD/eMMC (202E0000, 10000, SPI_83-84_H) */
+		mmc0: mmc@0x202E0000 {
 			compatible = "snps,dwcmshc-sdhci";
-			reg = <0x0 0x202e0000 0x0 0x10000>;
+			reg = <0x0 0x202E0000 0x0 0x10000>;
+			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 52 IRQ_TYPE_LEVEL_HIGH>;
+			bus-width = <4>;
 			clock-names = "bus", "core";
 			clocks = <&cmu0_avlsp 18>, <&cmu0_avlsp 19>;
 			status = "disabled";
+			max-frequency = <10000000>;
+			disable-wp;
 		};
 
-		vdec: vdec@24200000 {
-			compatible = "baikal,d5500-vxd";
-			reg = <0x0 0x24200000 0x0 0x10000>;
-			interrupts = <GIC_SPI 497 IRQ_TYPE_LEVEL_HIGH>;
-			status = "disabled";
-		};
-
-		mali: gpu@2a200000 {
-			compatible = "arm,mali-midgard", "arm,mali-t628";
-			#cooling-cells = <2>; /* min followed by max */
-			reg = <0x0 0x2a200000 0x0 0x4000>;
-			interrupts = <GIC_SPI 175 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 174 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "job", "mmu", "gpu";
-			clocks = <&cmu_mali>;
-			clock-names = "gpuclk";
-			operating-points-v2 = <&gpu_opp_table>;
-			system-coherency = <0>;
-		};
-
-		pvt_ca57_0: pvt@28200000 {
-			compatible = "baikal,pvt";
-			reg = <0x0 0x28200000 0x0 0x10000>;
-			pvt_id = <0>;
-			interrupts = <GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH>;
-			status = "disabled";
-		};
-
-		pvt_ca57_1: pvt@c200000 {
-			compatible = "baikal,pvt";
-			reg = <0x0 0xc200000 0x0 0x10000>;
-			pvt_id = <1>;
-			interrupts = <GIC_SPI 121 IRQ_TYPE_LEVEL_HIGH>;
-			status = "disabled";
-		};
-
-		pvt_ca57_2: pvt@a200000 {
-			compatible = "baikal,pvt";
-			reg = <0x0 0xa200000 0x0 0x10000>;
-			pvt_id = <2>;
-			interrupts = <GIC_SPI 123 IRQ_TYPE_LEVEL_HIGH>;
-			status = "disabled";
-		};
-
-		pvt_ca57_3: pvt@26200000 {
-			compatible = "baikal,pvt";
-			reg = <0x0 0x26200000 0x0 0x10000>;
-			pvt_id = <3>;
-			interrupts = <GIC_SPI 125 IRQ_TYPE_LEVEL_HIGH>;
-			status = "disabled";
-		};
-
-		pvt_mali: pvt@2a060000 {
-			compatible = "baikal,pvt";
-			reg = <0x0 0x2a060000 0x0 0x10000>;
-			pvt_id = <4>;
-			interrupts = <GIC_SPI 221 IRQ_TYPE_LEVEL_HIGH>;
-			status = "disabled";
-		};
-
-		usb2: usb2@2c400000 {
+		/* USB MM: USB-2 (2C400000, 100000, SPI_267-268_H, SPI_277_H) */
+		usb2: usb2@2C400000 {
 			compatible = "be,baikal-dwc3";
 			status = "disabled";
 			#address-cells = <2>;
 			#size-cells = <2>;
 			ranges;
-			clocks = <&usb_clk>;
+			clocks = <&usb_clk 0>;
 			clock-names = "usb";
 			dma-coherent;
 
-			dwc3@2c400000 {
+			dwc3@2C400000 {
 				compatible = "snps,dwc3", "synopsys,dwc3", "generic-xhci";
-				reg = <0x0 0x2c400000 0x0 0x100000>;
+				reg = <0x0 0x2C400000 0x0 0x100000>;
 				interrupts = <GIC_SPI 235 IRQ_TYPE_LEVEL_HIGH>,
 					     <GIC_SPI 236 IRQ_TYPE_LEVEL_HIGH>,
 					     <GIC_SPI 245 IRQ_TYPE_LEVEL_HIGH>;
@@ -716,18 +700,19 @@
 			};
 		};
 
-		usb3: usb3@2c500000 {
+		/* USB MM: USB-3 (2C500000, 100000, SPI_269-276_H, SPI_278_H) */
+		usb3: usb3@2C500000 {
 			compatible = "be,baikal-dwc3";
 			status = "disabled";
 			#address-cells = <2>;
 			#size-cells = <2>;
 			ranges;
-			clocks = <&usb_clk>;
+			clocks = <&usb_clk 0>;
 			clock-names = "usb";
 
-			dwc3@2c500000 {
+			dwc3@2C500000 {
 				compatible = "snps,dwc3", "synopsys,dwc3", "generic-xhci";
-				reg = <0x0 0x2c500000 0x0 0x100000>;
+				reg = <0x0 0x2C500000 0x0 0x100000>;
 				interrupts = <GIC_SPI 237 IRQ_TYPE_LEVEL_HIGH>,
 					     <GIC_SPI 238 IRQ_TYPE_LEVEL_HIGH>,
 					     <GIC_SPI 239 IRQ_TYPE_LEVEL_HIGH>,
@@ -742,9 +727,11 @@
 			};
 		};
 
-		sata0: sata@2c600000 {
+		/* USB MM: SATA0 (2C600000, 10000, SPI_265_H) */
+		sata0: sata0@2C600000 {
 			compatible = "snps,dwc-ahci", "generic-ahci";
-			reg = <0x0 0x2c600000 0 0x10000>;
+			reg = <0x0 0x2C600000 0 0x10000>;
+			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 233 IRQ_TYPE_LEVEL_HIGH>;
 			ports-implemented = <1>;
 			dma-coherent;
@@ -753,9 +740,11 @@
 			status = "disabled";
 		};
 
-		sata1: sata@2c610000 {
+		/* USB MM: SATA1 (2C610000, 10000, SPI_266_H) */
+		sata1: sata1@2C610000 {
 			compatible = "snps,dwc-ahci", "generic-ahci";
-			reg = <0x0 0x2c610000 0 0x10000>;
+			reg = <0x0 0x2C610000 0 0x10000>;
+			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 234 IRQ_TYPE_LEVEL_HIGH>;
 			ports-implemented = <1>;
 			dma-coherent;
@@ -764,9 +753,11 @@
 			status = "disabled";
 		};
 
-		dma: dma@2c620000 {
+		/* DMA-330: DMAC ("secure",     2C620000, 10000, SPI_255-263_H) */
+		/*               ("non-secure", 2C630000, 10000, ?) */
+		dma: dma@2C620000 {
 			compatible = "arm,pl330", "arm,primecell";
-			reg = <0x0 0x2c620000 0 0x1000>;
+			reg = <0x0 0x2C620000 0 0x1000>;
 			#dma-cells = <1>;
 			#dma-channels = <8>;
 			#dma-requests = <32>;
@@ -784,20 +775,24 @@
 			status = "disabled";
 		};
 
-		gic: interrupt-controller@2d000000 {
+		/* GIC-500: GICV3 (2D000000, 400000, *) */
+		gic: interrupt-controller@2D000000 {
 			compatible = "arm,gic-v3";
 			#interrupt-cells = <3>;
 			#address-cells = <2>;
 			#size-cells = <2>;
 			ranges;
 			interrupt-controller;
-			reg = <0x0 0x2d000000 0x0 0x10000>,  /* GICD */
-			      <0x0 0x2d100000 0x0 0x200000>, /* GICR */
-			      <0x0 0x10200000 0x0 0x2000>,   /* GICC */
-			      <0x0 0x10210000 0x0 0x1000>,   /* GICH */
-			      <0x0 0x10220000 0x0 0x2000>;   /* GICV */
+			/* TODO: gic memory map */
+			reg = <0x0 0x2d000000 0x0 0x10000>,  /* GICD, GIC Distributor interface */
+			      <0x0 0x2d100000 0x0 0x200000>; /* GICR, GIC Redistributors */
+			      /* Optional ranges: TODO */
+			    /*<0x0 0x2d0xxxxx 0x0 0x2000>,*/ /* GICC, GIC CPU interface */
+			    /*<0x0 0x2d0xxxxx 0x0 0x2000>,*/ /* GICH, GIC Hypervisor interface */
+			    /*<0x0 0x2d0xxxxx 0x0 0x2000>;*/ /* GICV, GIC Virtual CPU interface */
 			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
 
+			/* GIC.v3 Interrupt Translation Service */
 			its: its@2d020000 {
 				compatible = "arm,gic-v3-its";
 				msi-controller;
@@ -806,10 +801,111 @@
 			};
 		};
 
-		xgmac0: ethernet@30200000 {
+		/* XGBE MM: GMAC0 (30240000, 10000, SPI_323_H) */
+		gmac0: eth0@30240000 {
+			compatible = "be,dwmac", "snps,dwmac-3.710", "snps,dwmac";
+			reg = <0x0 0x30240000 0x0 0x10000>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 291 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq";
+			max-speed = <1000>;
+			clocks = <&soc_ethclk>, <&cmu0_xgbe 10>;
+			clock-names = "stmmaceth", "tx2_clk";
+			snps,fixed-burst;
+			mac-address = [ 00 00 00 00 00 00 ];
+			local-mac-address = [ 00 00 00 00 00 00 ];
+			phy-mode = "rgmii-id";
+			phy-handle = <&gmac0_phy>;
+			snps,reset-delays-us = <0 10200 1000>;
+			status = "disabled";
+			dma-coherent;
+
+			gmdio0: gmac0_mdio {
+				compatible = "snps,dwmac-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				gmac0_phy: ethernet-phy@3 {
+					compatible = "micrel,ksz9031", "ethernet-phy-id0022.1620", "ethernet-phy-ieee802.3-c22";
+					reg = <0x3>;
+					txd0-skew-ps = <0>;
+					txd1-skew-ps = <0>;
+					txd2-skew-ps = <0>;
+					txd3-skew-ps = <0>;
+					txc-skew-ps  = <0xff>;
+				};
+			};
+		};
+
+		/* XGBE MM: GMAC1 (30250000, 10000, SPI_324_H) */
+		gmac1: eth1@30250000 {
+			compatible = "be,dwmac", "snps,dwmac-3.710", "snps,dwmac";
+			reg = <0x0 0x30250000 0x0 0x10000>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 292 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq";
+			max-speed = <1000>;
+			clocks = <&soc_ethclk>, <&cmu0_xgbe 13>;
+			clock-names = "stmmaceth", "tx2_clk";
+			snps,fixed-burst;
+			mac-address = [ 00 00 00 00 00 00 ];
+			local-mac-address = [ 00 00 00 00 00 00 ];
+			phy-mode = "rgmii-id";
+			phy-handle = <&gmac1_phy>;
+			snps,reset-delays-us = <0 10200 1000>;
+			status = "disabled";
+			dma-coherent;
+
+			gmdio1: gmac1_mdio {
+				compatible = "snps,dwmac-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				gmac1_phy: ethernet-phy@3 {
+					compatible = "micrel,ksz9031", "ethernet-phy-id0022.1620", "ethernet-phy-ieee802.3-c22";
+					reg = <0x3>;
+					txd0-skew-ps = <0>;
+					txd1-skew-ps = <0>;
+					txd2-skew-ps = <0>;
+					txd3-skew-ps = <0>;
+					txc-skew-ps  = <0xff>;
+				};
+			};
+		};
+
+		/* Baikal internal MDIO */
+		mdio0: be-mdio {
+			compatible = "be,mdio-gpio";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			mdc-pin = <&porta 30 GPIO_ACTIVE_HIGH>;
+			mdio-pin = <&porta 29 GPIO_ACTIVE_HIGH>;
+			clocks = <&gpio_clk 0>;
+			clock-names = "gpioclk";
+
+			mv_ch0: ethernet-phy@0C {
+				compatible = "marvell,88x2222", "ethernet-phy-ieee802.3-c45";
+				reg = <0x0C>;
+				phy-mode = "xgmii";
+				mv,line-mode = "KR";
+				mv,host-mode = "KX4";
+			};
+
+			mv_ch2: ethernet-phy@0E {
+				compatible = "marvell,88x2222", "ethernet-phy-ieee802.3-c45";
+				reg = <0x0E>;
+				phy-mode = "xgmii";
+				mv,line-mode = "KR";
+				mv,host-mode = "KX4";
+			};
+		};
+
+		/* XGMAC0 */
+		xgmac0: eth2@30200000 {
 			compatible = "amd,xgbe-seattle-v1a";
 			reg = <0x0 0x30200000 0x0 0x10000>,
 			      <0x0 0x30210000 0x0 0x10000>;
+			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 293 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 294 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 295 IRQ_TYPE_LEVEL_HIGH>,
@@ -834,16 +930,19 @@
 			mac-address = [ 00 20 13 ba 1c a1 ];
 			local-mac-address = [ 00 20 13 ba 1c a1 ];
 			be,pcs-mode = "KX4";
+			ext-phy-handle = <&mv_ch0>;
 			status = "disabled";
 			amd,per-channel-interrupt;
 			amd,speed-set = <0>;
 			#stream-id-cells = <16>;
 		};
 
-		xgmac1: ethernet@30220000 {
+		/* XGMAC1 */
+		xgmac1: eth3@30220000 {
 			compatible = "amd,xgbe-seattle-v1a";
 			reg = <0x0 0x30220000 0x0 0x10000>,
 			      <0x0 0x30230000 0x0 0x10000>;
+			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 310 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 311 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 312 IRQ_TYPE_LEVEL_HIGH>,
@@ -868,88 +967,21 @@
 			mac-address = [ 00 20 13 ba 1c a2 ];
 			local-mac-address = [ 00 20 13 ba 1c a2 ];
 			be,pcs-mode = "KX4";
+			ext-phy-handle = <&mv_ch2>;
 			status = "disabled";
 			amd,per-channel-interrupt;
 			amd,speed-set = <0>;
 			#stream-id-cells = <16>;
-		};
+		 };
 
-		mdio_gpio: mdio { /* internal MDIO */
-			compatible = "be,mdio-gpio";
-			#address-cells = <1>;
-			#size-cells = <0>;
-			mdc-pin = <&porta 30 GPIO_ACTIVE_HIGH>;
-			mdio-pin = <&porta 29 GPIO_ACTIVE_HIGH>;
-			clocks = <&gpio_clk>;
-			clock-names = "gpioclk";
-			status = "disabled";
-		};
-
-		stmmac_axi_setup: stmmac-axi-config {
-			snps,wr_osr_lmt = <0x0>;
-			snps,rd_osr_lmt = <0x0>;
-			snps,blen = <0 0 0 0 0 0 4>;
-		};
-
-		gmac0: ethernet@30240000 {
-			compatible = "baikal,bm1000-gmac", "be,dwmac";
-			reg = <0x0 0x30240000 0x0 0x10000>;
-			interrupts = <GIC_SPI 291 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "macirq";
-			max-speed = <1000>;
-			clocks = <&soc_ethclk>, <&cmu0_xgbe 10>;
-			clock-names = "stmmaceth", "tx2_clk";
-			mac-address = [ 00 00 00 00 00 00 ];
-			local-mac-address = [ 00 00 00 00 00 00 ];
-			snps,axi-config = <&stmmac_axi_setup>;
-			snps,fixed-burst;
-			snps,no-pbl-x8;
-			snps,txpbl = <4>;
-			snps,rxpbl = <4>;
-			snps,reset-delays-us = <0 10200 1000>;
-			status = "disabled";
-			dma-coherent;
-
-			mdio0: mdio {
-				compatible = "snps,dwmac-mdio";
-				#address-cells = <1>;
-				#size-cells = <0>;
-			};
-		};
-
-		gmac1: ethernet@30250000 {
-			compatible = "baikal,bm1000-gmac", "be,dwmac";
-			reg = <0x0 0x30250000 0x0 0x10000>;
-			interrupts = <GIC_SPI 292 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "macirq";
-			max-speed = <1000>;
-			clocks = <&soc_ethclk>, <&cmu0_xgbe 13>;
-			clock-names = "stmmaceth", "tx2_clk";
-			mac-address = [ 00 00 00 00 00 00 ];
-			local-mac-address = [ 00 00 00 00 00 00 ];
-			snps,axi-config = <&stmmac_axi_setup>;
-			snps,fixed-burst;
-			snps,no-pbl-x8;
-			snps,txpbl = <4>;
-			snps,rxpbl = <4>;
-			snps,reset-delays-us = <0 10200 1000>;
-			status = "disabled";
-			dma-coherent;
-
-			mdio1: mdio {
-				compatible = "snps,dwmac-mdio";
-				#address-cells = <1>;
-				#size-cells = <0>;
-			};
-		};
-
-		vdu1: vdu@30260000 {
+		/* HDMI VDU (30260000, 10000, SPI_361-362_?) */
+		vdu1: vdu_hdmi@0x30260000 {
 			compatible = "baikal,vdu";
 			reg = <0x0 0x30260000 0x0 0x1000>;
 			interrupts = <GIC_SPI 329 IRQ_TYPE_LEVEL_HIGH>, /* VDU INTR */
 				     <GIC_SPI 330 IRQ_TYPE_LEVEL_HIGH>; /* VDU INTR_CDD */
-			clocks = <&cmu1_xgbe 0>;
-			clock-names = "pclk";
+			clocks = <&cmu1_xgbe 0>, <&ref_clk>;
+			clock-names = "pclk", "aclk";
 			status = "disabled";
 
 			port {
@@ -961,10 +993,10 @@
 
 		hdmi: hdmi@30280000 {
 			compatible = "baikal,hdmi";
-			reg = <0x0 0x30280000 0x0 0x20000>;
+			reg = <0 0x30280000 0 0x20000>;
 			reg-io-width = <4>;
 			interrupts = <GIC_SPI 331 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&cmu0_xgbe 0>, <&cmu0_xgbe 17>;
+			clocks = <&xgbe_cmu0 0>, <&xgbe_cmu0 17>;
 			clock-names = "iahb", "isfr";
 			status = "disabled";
 
@@ -985,7 +1017,7 @@
 				};
 			};
 		};
-	};
+	}; /* end of soc node */
 
 	hdmi-out {
 		compatible = "hdmi-connector";
@@ -997,5 +1029,12 @@
 				remote-endpoint = <&hdmi_tx_out>;
 			};
 		};
+	};
+
+	vdec: vdec {
+		compatible = "baikal,d5500-vxd";
+		reg = <0x0 0x24200000 0x0 0x10000>;
+		interrupts = <GIC_SPI 497 IRQ_TYPE_LEVEL_HIGH>;
+		status = "disabled";
 	};
 };

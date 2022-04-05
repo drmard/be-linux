@@ -25,8 +25,6 @@
 #define DBAR        0x028
 #define DCAR        0x02C
 #define DEAR        0x030
-#define PWMFR       0x034
-#define PWMDCR      0x038
 #define HVTER       0x044
 #define HPPLOR      0x048
 #define GPIOR       0x1F8
@@ -43,20 +41,16 @@
 #define OWDEAR1     0x628
 #define MRR         0xFFC
 
-#define INTR_UFU    BIT(16)
 #define INTR_BAU    BIT(7)
 #define INTR_VCT    BIT(6)
 #define INTR_MBE    BIT(5)
 #define INTR_FER    BIT(4)
-#define INTR_IFO    BIT(3)
-#define INTR_OFU    BIT(0)
 
 #define CR1_FBP             BIT(19)
 #define CR1_FDW_MASK        GENMASK(17, 16)
 #define CR1_FDW_4_WORDS     (0 << 16)
 #define CR1_FDW_8_WORDS     (1 << 16)
 #define CR1_FDW_16_WORDS    (2 << 16)
-#define CR1_OPS_MASK        GENMASK(14, 12)
 #define CR1_OPS_LCD18       (0 << 13)
 #define CR1_OPS_LCD24       (1 << 13)
 #define CR1_OPS_565         (0 << 12)
@@ -114,12 +108,6 @@
 #define ISCR_VSC_VBP        0x5
 #define ISCR_VSC_VACTIVE    0x6
 #define ISCR_VSC_VFP        0x7
-
-#define PWMFR_PWMPCR        BIT(24)
-#define PWMFR_PWMFCI        BIT(23)
-#define PWMFR_PWMFCE        BIT(22)
-#define PWMFR_PWMFCD_MASK   GENMASK(21, 0)
-#define PWMFR_PWMFCD(x)     ((x) << 0)
 
 #define HVTER_VSWE_MASK     GENMASK(25, 24)
 #define HVTER_VSWE(x)       ((x) << 24)
