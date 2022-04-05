@@ -278,6 +278,12 @@ config 88X2222_PHY
 	  Multi-speed Ethernet Transceivers.
 	  Currently supports 88x2222
 
+config 88X5113_PHY
+	tristate "Driver for Marvell 88X5113 Transceiver"
+	depends on OF && OF_MDIO && MV_MDIO_GPIO && MDIO_BITBANG
+	---help---
+	  Supports 88x5113 only on UNA boards
+
 config ADIN_PHY
 	tristate "Analog Devices Industrial Ethernet PHYs"
 	help
