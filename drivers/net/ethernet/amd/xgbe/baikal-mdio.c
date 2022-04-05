@@ -128,6 +128,10 @@
 #include "xgbe.h"
 #include "xgbe-common.h"
 
+#ifdef CONFIG_MV_MDIO_GPIO
+#include "xgbe_rtt.h"
+#endif
+
 #ifndef VR_XS_PMA_MII_Gen5_MPLL_CTRL
 #define VR_XS_PMA_MII_Gen5_MPLL_CTRL                    0x807A
 #endif
@@ -304,6 +308,10 @@ static int be_xgbe_phy_xgmii_mode(struct xgbe_prv_data *pdata)
 static int __maybe_unused be_xgbe_phy_soft_reset(struct xgbe_prv_data *pdata)
 {
 	int count, ret;
+#ifdef CONFIG_MV_MDIO_GPIO
+	int res;
+	struct mv_error *err;
+#endif
 	DBGPR("%s\n", __FUNCTION__);
 
 	ret = XMDIO_READ(pdata, MDIO_MMD_PCS, MDIO_CTRL1);
@@ -318,6 +326,30 @@ static int __maybe_unused be_xgbe_phy_soft_reset(struct xgbe_prv_data *pdata)
 		if (ret < 0)
 			return ret;
 	} while ((ret & MDIO_CTRL1_RESET) && --count);
+
+#ifdef CONFIG_MV_MDIO_GPIO
+
+  printk (KERN_INFO  "%s   soft-reset 5113 \n",__func__) ;
+// === Here is implementation of the soft-reset of phy mv88x5113 ===
+
+// We've made sure that the BE PHY soft reset didn't throw any errors,
+// so we can perform soft reset for external PHY mv88x5113.
+  err = kzalloc(sizeof(*err), GFP_KERNEL);
+  if (unlikely(!err)) {
+    err = NULL;
+    goto err2;
+  }
+  err->error = 0;
+  err->description[0] = '\0';
+  res = mv_soft_reset(pdata->mv_phydev);
+  if (res != 0) {
+    err->error = 1;
+    strcpy(err->description, __func__);
+    printk(KERN_INFO "%s - cannot pass \'mv_soft_reset\' \n",err->description);
+  }
+err2:
+  printk(KERN_INFO"%s- cannot allocate memory \n",__func__);
+#endif     //CONFIG_MV_MDIO_GPIO
 
 	if (ret & MDIO_CTRL1_RESET)
 		return -ETIMEDOUT;
@@ -340,6 +372,12 @@ static int be_xgbe_phy_config_aneg(struct xgbe_prv_data *pdata)
 
 	XMDIO_WRITE(pdata, MDIO_MMD_AN, MDIO_CTRL1, reg);
 
+#ifdef CONFIG_MV_MDIO_GPIO
+
+  if (!(mv_config_aneg(pdata->mv_phydev)))
+    pdata->mv_phydev->autoneg = AUTONEG_ENABLE;
+
+#endif
 	return 0;
 }
 
@@ -373,6 +411,11 @@ static int ext_phy_probe(struct device *pdev, struct phy_device **phy_dev)
 
 int be_xgbe_phy_config_init(struct xgbe_prv_data *pdata)
 {
+
+#ifdef CONFIG_MV_MDIO_GPIO
+  struct mv_error *err = NULL;
+#endif
+
 	int ret = 0;
     	int count = DELAY_COUNT;
 	DBGPR("%s\n", __FUNCTION__);
@@ -465,6 +508,24 @@ int be_xgbe_phy_config_init(struct xgbe_prv_data *pdata)
 		ret = XMDIO_READ(pdata, MDIO_MMD_PCS, 0x0001);
 	} while(((ret & 0x0004) != 0x0004) && count--);
 
+#ifdef CONFIG_MV_MDIO_GPIO
+// Here are code to support mv mdio bus and to control
+// phy mv88X5113
+
+
+  printk (KERN_INFO  "%s ------support for 88x5113 \n", __func__);
+  // struct mv_error *err = NULL;
+  // struct mv5113_priv *priv_5113;
+
+  // add to phy 5113 modes ETHTOOL_LINK_MODE_10000baseKR_Full_BIT and ...
+  err = una_phy_config_init(pdata);
+  if (err && err->error != 0) {
+    printk(
+    KERN_INFO "%s - cannot init PHY device properly on UNA board\n", __func__);
+  }
+
+#endif
+
 	return 0;
 }
 
@@ -480,6 +541,11 @@ static int be_xgbe_phy_aneg_done(struct xgbe_prv_data *pdata)
 
 static int be_xgbe_phy_update_link(struct xgbe_prv_data *pdata)
 {
+#ifdef CONFIG_MV_MDIO_GPIO
+  struct mv_error *err;
+  struct phy_device *phy;
+  struct mv5113_priv *priv;
+#endif
 	int new_state = 0;
 	int ret = 0;
 	struct phy_device *phydev;
@@ -522,6 +588,54 @@ static int be_xgbe_phy_update_link(struct xgbe_prv_data *pdata)
 		pdata->phy_speed = SPEED_UNKNOWN;
 	}
 
+#ifdef CONFIG_MV_MDIO_GPIO
+  //struct mv_error *err;
+  //struct phy_device *phy;
+  //struct mv5113_priv *priv;
+  err = kzalloc(sizeof(*err), GFP_KERNEL);
+  if (unlikely(!err)) {
+    err = NULL;
+    goto err2;
+  }
+  err->error = 0;
+  err->description[0] = '\0';
+  phy = pdata->mv_phydev;
+  if (!phy) {
+    err->error = 1;
+    strcpy (err->description, "*phy update link* cannot get phy device!");
+    goto err1;
+  }
+  priv = dev_get_drvdata(&phy->mdio.dev);   
+  if (!priv)
+    goto err1;
+  ret = mv_link_status_ext(phy);
+  if(ret) {
+    // check link status on BE internal PHY
+    if (!pdata->phy_link) {
+      // set link to same state
+      pdata->mv_phydev->link = 0;
+      // save this
+      priv->phydevice->link = 0;
+    }
+  } else {
+    if (pdata->phy_link) {
+      // set link up
+      pdata->mv_phydev->link = 1;
+      // save link status
+      priv->phydevice->link = 1;
+    }
+  }
+  pdata->mv_phydev->speed = pdata->phy_speed;
+  priv->phydevice->speed = pdata->phy_speed;
+err1:
+  if (err && err->description) {
+    printk(
+    KERN_INFO "%s err: %s\n", __func__, err->description);
+  }
+err2:
+  printk(
+  KERN_INFO"%s err == NULL - cannot allocate memory\n",__func__);
+#endif
 	return 0;
 }
 
@@ -583,6 +697,15 @@ static void be_xgbe_phy_read_status(struct xgbe_prv_data *pdata)
 
 update_link:
 	be_xgbe_phy_update_link(pdata);
+
+#ifdef CONFIG_MV_MDIO_GPIO
+
+  if (mv_link_status_ext(pdata->mv_phydev))
+    printk(KERN_INFO "%s - link is \'up\' on mv88x5113\n",__func__);
+  else
+    printk(KERN_INFO "%s - link is \'down\' on PHY mv88x5113\n",__func__);
+
+#endif
 }
 
 static void be_xgbe_phy_stop(struct xgbe_prv_data *pdata)
@@ -621,6 +744,88 @@ irqreturn_t be_an_isr(struct xgbe_prv_data *pdata)
 {
 	return IRQ_HANDLED;
 }
+
+#ifdef CONFIG_MV_MDIO_GPIO
+// We will perform here 'config_init' for phy mv88x5113
+
+
+// This method will be called in BE config_init method,
+// so it should return pointer to struct mv_error if occurs
+struct mv_error *una_phy_config_init(
+    struct xgbe_prv_data *pdata)
+{
+  int ret;
+  struct mii_bus *mii_bus;
+  struct mv_error *err;
+  struct device_node *mv;
+  struct phy_device *phydev;
+  struct phy_device* phy;
+  struct mv5113_priv *priv_5113;
+  int phy_addr = -1;
+
+
+  printk(KERN_INFO "%s   -start support 88x5113 \n", __func__);
+
+  err = kzalloc(sizeof(*err), GFP_KERNEL);
+  if (unlikely(!err)) {
+    err = NULL;
+    goto err2;
+  }
+  err->error = 0;
+  err->description[0] = ' ';
+  err->description[1] = '\0';
+
+  priv_5113 = kzalloc(sizeof(*priv_5113), GFP_KERNEL);
+  if (!priv_5113) {
+      printk(KERN_INFO "%s - cannot allocate memory for private data\n", __func__);
+      err->error = -ENOMEM;
+      strcpy(err->description, __func__); 
+      goto err2;
+  }
+
+  mii_bus = mv_mdio_bus_find_ex(pdata);
+  if (!mii_bus) {
+    err->error = -EPROBE_DEFER;
+    strcpy(err->description,"cant pass \'mv_mdio_bus_find_ex\'");
+    goto err2;
+  }
+  get_device(&mii_bus->dev);
+  priv_5113->bus = mii_bus;
+  priv_5113->mii_dn = mii_bus->priv;
+
+  phydev = phy_find_first(mii_bus);
+  if (!phydev) {
+    printk (KERN_INFO "%s - cannot pass \'phy_find_first\'\n",__func__);
+    err->error = -ENXIO;
+    strcpy(err->description, "cannot pass \'phy_find_first\'");
+    goto err2;
+  }
+  ret = phy_init_hw(phydev);
+  if (ret < 0) {
+    printk (KERN_INFO "%s cannot pass phy_init_hw ..\n",__func__);
+    return ret;
+  }
+
+  priv_5113->phydevice = phydev;
+  phydev->priv = priv_5113;
+  phydev->state = PHY_READY;
+  phydev->autoneg = AUTONEG_DISABLE;
+
+  if ((phydev->speed != SPEED_10000) && (phydev->duplex != DUPLEX_FULL))
+    return -ENODEV;
+  pdata->mv_phydev = phydev;
+
+err2:
+  if (!err)
+    printk (KERN_INFO "%s - cannot allocate memory for error description\n",__func__);
+  else
+    printk (KERN_INFO "%s err: error - %d description - %s\n",
+    __func__,err->error,err->description);
+
+  return err;
+}
+
+#endif
 
 void xgbe_init_function_ptrs_phy_baikal(struct xgbe_phy_if *phy_if)
 {
