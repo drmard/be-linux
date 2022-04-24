@@ -970,6 +970,9 @@ static void stmmac_check_pcs_mode(struct stmmac_priv *priv)
 			netdev_dbg(priv->dev, "PCS SGMII support enabled\n");
 			priv->hw->pcs = STMMAC_PCS_SGMII;
 		}
+		if (priv->hw->pcs == STMMAC_PCS_RGMII)
+                printk (KERN_INFO   "%s   priv->hw->pcs == STMMAC_PCS_RGMII \n",__func__);
+
 	}
 }
 
@@ -986,6 +989,8 @@ static int stmmac_init_phy(struct net_device *dev)
 	struct stmmac_priv *priv = netdev_priv(dev);
 	struct device_node *node;
 	int ret;
+	printk  (KERN_INFO  "%s      ---\n",__func__)  ;
+
 
 	node = priv->plat->phylink_node;
 
@@ -997,6 +1002,9 @@ static int stmmac_init_phy(struct net_device *dev)
 	 */
 	if (!node || ret) {
 		int addr = priv->plat->phy_addr;
+
+		printk (KERN_INFO  "%s   phy device address - %d  \n",__func__,addr);
+
 		struct phy_device *phydev;
 
 		phydev = mdiobus_get_phy(priv->mii, addr);
@@ -1006,6 +1014,7 @@ static int stmmac_init_phy(struct net_device *dev)
 		}
 
 		ret = phylink_connect_phy(priv->phylink, phydev);
+
 	}
 
 	return ret;
@@ -1017,6 +1026,10 @@ static int stmmac_phy_setup(struct stmmac_priv *priv)
 	int mode = priv->plat->phy_interface;
 	struct phylink *phylink;
 
+
+	printk (KERN_INFO "%s   mode - %d \n",__func__,mode);
+
+
 	priv->phylink_config.dev = &priv->dev->dev;
 	priv->phylink_config.type = PHYLINK_NETDEV;
 
@@ -1026,6 +1039,10 @@ static int stmmac_phy_setup(struct stmmac_priv *priv)
 		return PTR_ERR(phylink);
 
 	priv->phylink = phylink;
+
+	printk (KERN_INFO  "%s   returned 0 \n",__func__);
+
+
 	return 0;
 }
 

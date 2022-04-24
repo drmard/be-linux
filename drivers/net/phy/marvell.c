@@ -168,6 +168,8 @@
 #define MII_88E1512_GEN_CTRL_REG_1_MODE_RGMII_TO_COPPER 0x0	 /* RGMII to Copper */
 
 #define MII_88E1512_GEN_CTRL_REG_1_MODE_RGMII_TO_1000BASE_X         0x2    /* RGMII to 1000BASE-X        */
+#define MII_88E1512_GEN_CTRL_REG_1_MODE_RGMII_TO_AUTO_MEDIA_DETECT  0x7    /* RGMII to Auto Media Detect */
+
 #define MII_88E1512_GEN_CTRL_REG_1_MODE_RGMII_TO_100BASE_FX         0x3    /* RGMII to 100BASE-FX        */
 #define MII_88E1512_GEN_CTRL_REG_1_MODE_RGMII_TO_SGMII_MEDIA_MODE   0x4  /* RGMII to SGMII(Media mode) */
 
@@ -908,7 +910,145 @@ static int m88e1318_config_init(struct phy_device *phydev)
 
 static int m88e1510_config_init(struct phy_device *phydev)
 {
-	int err;
+	int err,ret;
+	int temp;
+	u32 mode_num;
+	struct device_node *np;
+
+
+
+
+	printk (KERN_INFO "%s  -start method \n",__func__) ;
+        np = phydev->mdio.dev.of_node;
+	if (np == NULL) {
+			printk (KERN_INFO "%s    cannot get device node for mdio bus \n",__func__);
+		goto old_start;
+	}
+
+
+
+
+	ret = of_property_read_u32(np, "operating-mode", &mode_num);
+        if (ret) {
+		printk("%s - cannot get 'operating-mode' property: %d\n",__func__,ret);
+		return ret;
+	} else {
+		if (0 == mode_num) {
+    		// RGMII-to-Copper mode initialization
+    		printk("%s: === set RGMII-to-Copper mode === \n",__func__);
+    		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID) {
+        		// Select page 18 
+			err = phy_write(phydev, MII_MARVELL_PHY_PAGE, 18);
+			if (err < 0) {
+				printk (KERN_INFO "%s - cannot select PAGE 18 \n",__func__);
+				return err;
+			}
+
+			// In register 20, write MODE[2:0] = 0x0 (RGMII to Copper)
+			temp = phy_read(phydev, MII_88E1512_GEN_CTRL_REG_1);
+			temp &= ~MII_88E1512_GEN_CTRL_REG_1_MODE_MASK;
+			temp |= MII_88E1512_GEN_CTRL_REG_1_MODE_RGMII_TO_COPPER;
+			err = phy_write(phydev, MII_88E1512_GEN_CTRL_REG_1, temp);
+			if (err < 0) 
+			{
+				printk (KERN_INFO"%s - cant write mode RGMII-to-Copper to register number 20 \n",__func__);
+				return err;
+			} else {
+				printk (KERN_INFO "%s write RGMII to Copper mose - success \n",__func__);
+			}
+
+
+
+          // reset after changing MODE[2:0]
+          temp |= MII_88E1512_GEN_CTRL_REG_1_RESET;
+          err = phy_write(phydev, MII_88E1512_GEN_CTRL_REG_1, temp);
+          if (err < 0) {
+            printk (KERN_INFO "%s - cannot perform reset after set mode (000)\n",__func__);
+            return err;
+
+          }
+
+          // heat test
+          // Select page 18
+          err = phy_write(phydev, MII_MARVELL_PHY_PAGE, 18);
+          if (err < 0)
+            return err;
+
+          // read reg 22
+          temp = phy_read(phydev, MII_MARVELL_PHY_PAGE);
+          printk("%s === ETH0: Reg22 : 0x%x . === \n",__func__, temp);
+
+          /* In reg 20, write MODE[2:0] = 0x0 (RGMII to Copper) */
+          temp = phy_read(phydev, MII_88E1510_GEN_CTRL_REG_1);
+          printk(KERN_INFO "%s === ETH0: Reg20_Page18 : 0x%x . === \n",__func__, temp);
+
+
+          // reset page selection
+          err = phy_write(phydev, MII_MARVELL_PHY_PAGE, 0);
+          if (err < 0) {
+              printk  (KERN_INFO "%s    cannot reset page 18\n",__func__);
+              return err;
+          }
+
+        }
+      } else {                // if (2 == mode_num) {
+        // set RGMII-to-1000BASE-X mode
+
+        printk("%s === set RGMII-to-Auto-Detect-Mode mode === \n",__func__);
+
+
+        if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID || phydev->interface == PHY_INTERFACE_MODE_1000BASEX ||
+	    phydev->interface == PHY_INTERFACE_MODE_RGMII)
+        {
+            // Select page 18
+            err = phy_write(phydev, MII_MARVELL_PHY_PAGE, 18);
+            if (err < 0) {
+                return err;
+            }
+
+
+          /* In reg 20, write MODE[2:0] = 0x4 (RGMII to SGMII) */
+          temp = phy_read(phydev, MII_88E1512_GEN_CTRL_REG_1);
+          temp &= ~MII_88E1512_GEN_CTRL_REG_1_MODE_MASK;
+          //temp |= MII_88E1512_GEN_CTRL_REG_1_MODE_RGMII_TO_1000BASE_X;          // RGMII-to-1000BASE-X       
+	  temp |= MII_88E1512_GEN_CTRL_REG_1_MODE_RGMII_TO_AUTO_MEDIA_DETECT;     // RGMII to Auto Media Detect (Copper/1000BASE-X/100BASE-FX)
+
+          err = phy_write(phydev, MII_88E1512_GEN_CTRL_REG_1, temp);
+          if (err < 0)
+            return err;
+
+
+          /* reset after changing MODE[2:0] to '010' == 0x2   */
+          temp |= MII_88E1512_GEN_CTRL_REG_1_RESET;
+          err = phy_write(phydev, MII_88E1512_GEN_CTRL_REG_1, temp);
+          if (err < 0) {
+            printk (KERN_INFO "%s - cant write mode RGMII-to-1000BASE-X to 88e1512\n",__func__);
+            return err;
+          }
+
+          // heat test
+          // select page 18
+          err = phy_write(phydev, /*MII_MARVELL_PHY_PAGE*/22, 18);
+          if (err < 0)
+            return err;
+          // read register 22
+          temp = phy_read(phydev, MII_MARVELL_PHY_PAGE);
+          printk("%s === ETH1: Reg22 : 0x%x . === \n",__func__, temp);
+
+          temp = phy_read(phydev, MII_88E1510_GEN_CTRL_REG_1);
+          printk("%s === ETH1: Reg20_Page18 : 0x%x . === \n",__func__, temp);
+        }
+      }
+    }
+
+
+
+
+
+
+
+
+
 
 	/* SGMII-to-Copper mode initialization */
 	if (phydev->interface == PHY_INTERFACE_MODE_SGMII) {

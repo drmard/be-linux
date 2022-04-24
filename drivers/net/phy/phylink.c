@@ -724,6 +724,12 @@ static int phylink_bringup_phy(struct phylink *pl, struct phy_device *phy)
 	struct phylink_link_state config;
 	__ETHTOOL_DECLARE_LINK_MODE_MASK(supported);
 	int ret;
+	char phy_name[16];
+
+	printk (KERN_INFO "%s   ---\n",__func__);
+
+	strcpy (phy_name , "Marvell 88E1512") ;
+	printk (KERN_INFO  "%s  name - %s  \n", __func__, phy_name);
 
 	memset(&config, 0, sizeof(config));
 	linkmode_copy(supported, phy->supported);
@@ -751,7 +757,8 @@ static int phylink_bringup_phy(struct phylink *pl, struct phy_device *phy)
 
 	phylink_info(pl,
 		     "PHY [%s] driver [%s]\n", dev_name(&phy->mdio.dev),
-		     phy->drv->name);
+		     /*phy->drv->name);*/
+		     phy_name);
 
 	mutex_lock(&phy->lock);
 	mutex_lock(&pl->state_mutex);
@@ -769,7 +776,7 @@ static int phylink_bringup_phy(struct phylink *pl, struct phy_device *phy)
 		    __ETHTOOL_LINK_MODE_MASK_NBITS, pl->supported,
 		    __ETHTOOL_LINK_MODE_MASK_NBITS, phy->advertising);
 
-	if (phy_interrupt_is_valid(phy))
+	if (phy_interrupt_is_valid(phy))         // ??
 		phy_request_interrupt(phy);
 
 	return 0;
@@ -796,6 +803,9 @@ static int __phylink_connect_phy(struct phylink *pl, struct phy_device *phy,
 	if (ret)
 		phy_detach(phy);
 
+	printk  (KERN_INFO  "%s   returned - %d \n",__func__, ret);
+
+
 	return ret;
 }
 
@@ -816,6 +826,9 @@ static int __phylink_connect_phy(struct phylink *pl, struct phy_device *phy,
  */
 int phylink_connect_phy(struct phylink *pl, struct phy_device *phy)
 {
+	printk (KERN_INFO "%s  ---\n",__func__) ;
+
+
 	/* Use PHY device/driver interface */
 	if (pl->link_interface == PHY_INTERFACE_MODE_NA) {
 		pl->link_interface = phy->interface;
@@ -845,6 +858,9 @@ int phylink_of_phy_connect(struct phylink *pl, struct device_node *dn,
 	struct phy_device *phy_dev;
 	int ret;
 
+
+	printk (KERN_INFO "%s   ---\n",__func__);
+
 	/* Fixed links and 802.3z are handled without needing a PHY */
 	if (pl->link_an_mode == MLO_AN_FIXED ||
 	    (pl->link_an_mode == MLO_AN_INBAND &&
@@ -862,6 +878,8 @@ int phylink_of_phy_connect(struct phylink *pl, struct device_node *dn,
 			return -ENODEV;
 		return 0;
 	}
+	
+	printk (KERN_INFO  "%s    phy link interface - %d  \n", __func__, pl->link_interface);
 
 	phy_dev = of_phy_attach(pl->netdev, phy_node, flags,
 				pl->link_interface);
@@ -872,6 +890,10 @@ int phylink_of_phy_connect(struct phylink *pl, struct device_node *dn,
 		return -ENODEV;
 
 	ret = phylink_bringup_phy(pl, phy_dev);
+
+	printk   (KERN_INFO  "%s   phylink_bringup_phy returned   - %d \n",__func__,ret);
+
+
 	if (ret)
 		phy_detach(phy_dev);
 
