@@ -1047,7 +1047,7 @@ static int m88e1510_config_init(struct phy_device *phydev)
 
 
 
-
+old_start:
 
 
 	/* SGMII-to-Copper mode initialization */
