@@ -861,11 +861,12 @@ static void stmmac_mac_config(struct phylink_config *config, unsigned int mode,
 {
 	struct stmmac_priv *priv = netdev_priv(to_net_dev(config->dev));
 	u32 ctrl;
-
+	int sp ;
     printk (KERN_INFO  "%s  state->speed - %d\n",__func__,state->speed)  ;
 
     if (state->speed != 1000)
-      state->speed = 1000;
+      //state->speed = 1000;
+	sp = 1000 ;
     printk (KERN_INFO  "%s  state->speed after change - %d\n",__func__,state->speed)  ;
 
 
@@ -888,7 +889,7 @@ static void stmmac_mac_config(struct phylink_config *config, unsigned int mode,
 			return;
 		}
 	} else {
-		switch (state->speed) {
+		switch (/*state->speed*/sp) {
 		case SPEED_2500:
 			ctrl |= priv->hw->link.speed2500;
 			break;
@@ -906,10 +907,9 @@ static void stmmac_mac_config(struct phylink_config *config, unsigned int mode,
 		}
 	}
 
-	priv->speed = state->speed;
-    printk (KERN_INFO  "%s  priv->speed - %d\n",__func__,priv->speed)  ;
-    if (priv->speed != 1000)
-      priv->speed != 1000;
+	priv->speed = 1000;    //state->speed;
+        printk (KERN_INFO  "%s  priv->speed - %d\n",__func__,priv->speed)  ;
+//    if (priv->speed != 1000)  priv->speed != 1000;
 
 
 
@@ -1008,12 +1008,14 @@ static void stmmac_check_pcs_mode(struct stmmac_priv *priv)
  */
 static int stmmac_init_phy(struct net_device *dev)
 {
-	struct stmmac_priv *priv = netdev_priv(dev);
+	
 	struct device_node *node;
 	int ret;
+	struct phy_device *phydev;
+	struct stmmac_priv *priv ;
 	printk  (KERN_INFO  "%s      ---\n",__func__)  ;
 
-
+	priv = netdev_priv(dev);
 	node = priv->plat->phylink_node;
 
 	if (node)
@@ -1027,7 +1029,7 @@ static int stmmac_init_phy(struct net_device *dev)
 
 		printk (KERN_INFO  "%s   phy device address - %d  \n",__func__,addr);
 
-		struct phy_device *phydev;
+		
 
 		phydev = mdiobus_get_phy(priv->mii, addr);
 		if (!phydev) {
