@@ -332,7 +332,7 @@ static int phylink_parse_mode(struct phylink *pl, struct fwnode_handle *fwnode)
 
 static void phylink_mac_config(struct phylink *pl,
 			       const struct phylink_link_state *state)
-{
+{   printk  (KERN_INFO "%s   \n",__func__);
 	phylink_dbg(pl,
 		    "%s: mode=%s/%s/%s/%s adv=%*pb pause=%02x link=%u an=%u\n",
 		    __func__, phylink_an_mode_str(pl->link_an_mode),
@@ -860,7 +860,6 @@ int phylink_of_phy_connect(struct phylink *pl, struct device_node *dn,
 
 
 	printk (KERN_INFO "%s   ---\n",__func__);
-
 	/* Fixed links and 802.3z are handled without needing a PHY */
 	if (pl->link_an_mode == MLO_AN_FIXED ||
 	    (pl->link_an_mode == MLO_AN_INBAND &&
@@ -877,21 +876,37 @@ int phylink_of_phy_connect(struct phylink *pl, struct device_node *dn,
 		if (pl->link_an_mode == MLO_AN_PHY)
 			return -ENODEV;
 		return 0;
-	}
+	} else {
+        printk (KERN_INFO  "%s  phy_node name: %s\n",__func__,phy_node->full_name);
+    }
 	
-	printk (KERN_INFO  "%s    phy link interface - %d  \n", __func__, pl->link_interface);
+	printk (KERN_INFO  "%s  phy link interface - %d\n", __func__, pl->link_interface);
+	
+    if(pl->phydev != NULL) {
+      printk (KERN_INFO "%s  phy speed - %d \n",__func__, pl->phydev.speed) ;
+      if (pl->phydev.speed < 1000)
+        pl->phydev.speed = 1000;
+      printk (KERN_INFO "%s  phy speed after change - %d \n",__func__, pl->phydev.speed) ;
 
-	phy_dev = of_phy_attach(pl->netdev, phy_node, flags,
-				pl->link_interface);
+      printk (KERN_INFO "%s  phydev pause - %d \n",__func__, pl->phydev.pause) ;
+      printk (KERN_INFO "%s  phydev asym_pause - %d \n",__func__, pl->phydev.asym_pause) ;
+
+    }
+
+
+
+	phy_dev = of_phy_attach(pl->netdev, phy_node, flags, pl->link_interface);
 	/* We're done with the phy_node handle */
 	of_node_put(phy_node);
+    if (phy_dev)
+    printk (KERN_INFO "%s  speed - %d \n",__func__,phy_dev->speed);
 
 	if (!phy_dev)
 		return -ENODEV;
 
 	ret = phylink_bringup_phy(pl, phy_dev);
 
-	printk   (KERN_INFO  "%s   phylink_bringup_phy returned   - %d \n",__func__,ret);
+	printk   (KERN_INFO  "%s       phylink_bringup_phy returned - %d \n",__func__,ret);
 
 
 	if (ret)

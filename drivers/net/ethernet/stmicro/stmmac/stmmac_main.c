@@ -791,6 +791,12 @@ static void stmmac_validate(struct phylink_config *config,
 	int tx_cnt = priv->plat->tx_queues_to_use;
 	int max_speed = priv->plat->max_speed;
 
+    printk(KERN_INFO  "%s     max_speed - %d\n",__func__,max_speed);
+
+
+
+
+
 	phylink_set(mac_supported, 10baseT_Half);
 	phylink_set(mac_supported, 10baseT_Full);
 	phylink_set(mac_supported, 100baseT_Half);
@@ -805,7 +811,7 @@ static void stmmac_validate(struct phylink_config *config,
 	phylink_set_port_modes(mac_supported);
 
 	/* Cut down 1G if asked to */
-	if ((max_speed > 0) && (max_speed < 1000)) {
+	if ((max_speed > 0) && (max_speed <= 1000)) {
 		phylink_set(mask, 1000baseT_Full);
 		phylink_set(mask, 1000baseX_Full);
 	} else if (priv->plat->has_xgmac) {
@@ -856,6 +862,14 @@ static void stmmac_mac_config(struct phylink_config *config, unsigned int mode,
 	struct stmmac_priv *priv = netdev_priv(to_net_dev(config->dev));
 	u32 ctrl;
 
+    printk (KERN_INFO  "%s  state->speed - %d\n",__func__,state->speed)  ;
+
+    if (state->speed != 1000)
+      state->speed = 1000;
+    printk (KERN_INFO  "%s  state->speed after change - %d\n",__func__,state->speed)  ;
+
+
+
 	ctrl = readl(priv->ioaddr + MAC_CTRL_REG);
 	ctrl &= ~priv->hw->link.speed_mask;
 
@@ -893,6 +907,14 @@ static void stmmac_mac_config(struct phylink_config *config, unsigned int mode,
 	}
 
 	priv->speed = state->speed;
+    printk (KERN_INFO  "%s  priv->speed - %d\n",__func__,priv->speed)  ;
+    if (priv->speed != 1000)
+      priv->speed != 1000;
+
+
+
+
+    // end of changes
 
 	if (priv->plat->fix_mac_speed)
 		priv->plat->fix_mac_speed(priv->plat->bsp_priv, state->speed);
