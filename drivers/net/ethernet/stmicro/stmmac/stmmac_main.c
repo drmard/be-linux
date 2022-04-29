@@ -1046,19 +1046,16 @@ static int stmmac_init_phy(struct net_device *dev)
 
 static int stmmac_phy_setup(struct stmmac_priv *priv)
 {
-	struct fwnode_handle *fwnode = of_fwnode_handle(priv->plat->phylink_node);
-if (fwnode != NULL)
-printk (KERN_INFO "%s   fwnode is Valid \n",__func__) ;
-
-	int mode = priv->plat->phy_interface;
+	int mode ;
 	struct phylink *phylink;
 
-
-
+	struct fwnode_handle *fwnode = of_fwnode_handle(priv->plat->phylink_node);
+	mode = priv->plat->phy_interface;
 
 	printk (KERN_INFO "%s   mode - %d \n",__func__,mode);
 
-
+	if (fwnode != NULL)
+		printk (KERN_INFO "%s   fwnode is Valid \n",__func__) ;
 
 	priv->phylink_config.dev = &priv->dev->dev;
 	priv->phylink_config.type = PHYLINK_NETDEV;
@@ -1066,7 +1063,7 @@ printk (KERN_INFO "%s   fwnode is Valid \n",__func__) ;
 	phylink = phylink_create(&priv->phylink_config, fwnode, mode, &stmmac_phylink_mac_ops);
 	if (IS_ERR(phylink))  {
 		return PTR_ERR(phylink);
-        } elde {
+        } else {
 	    printk (KERN_INFO "%s phylink is Valid. \n",__func__);
 	    if (phylink->phydev->drv)
 	    printk (KERN_INFO "%s  drv name - %s \n ",__func__,phylink->phydev->drv->name) ;
@@ -1075,7 +1072,6 @@ printk (KERN_INFO "%s   fwnode is Valid \n",__func__) ;
 	priv->phylink = phylink;
 
 	printk (KERN_INFO  "%s   returned 0 \n",__func__);
-
 	return 0;
 }
 
