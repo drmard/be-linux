@@ -255,6 +255,8 @@ static int phylink_parse_mode(struct phylink *pl, struct fwnode_handle *fwnode)
 {
 	struct fwnode_handle *dn;
 	const char *managed;
+	printk  (KERN_INFO "%s  --- \n",__func__);
+
 
 	dn = fwnode_get_named_child_node(fwnode, "fixed-link");
 	if (dn || fwnode_property_present(fwnode, "fixed-link"))
@@ -333,6 +335,14 @@ static int phylink_parse_mode(struct phylink *pl, struct fwnode_handle *fwnode)
 static void phylink_mac_config(struct phylink *pl,
 			       const struct phylink_link_state *state)
 {
+	printk  (KERN_INFO "%s  start\n", __func__);
+	printk (KERN_INFO "%s: phylink:   mode=%s/%s/%s/%s adv=%*pb pause=%02x link=%u an=%u\n",
+		__func__, phylink_an_mode_str(pl->link_an_mode), phy_modes(state->interface),
+		phy_speed_to_str(state->speed),
+		phy_duplex_to_str(state->duplex),
+		__ETHTOOL_LINK_MODE_MASK_NBITS, state->advertising,
+		state->pause, state->link, state->an_enabled
+	);
 	phylink_dbg(pl,
 		    "%s: mode=%s/%s/%s/%s adv=%*pb pause=%02x link=%u an=%u\n",
 		    __func__, phylink_an_mode_str(pl->link_an_mode),
@@ -445,7 +455,7 @@ static void phylink_mac_link_up(struct phylink *pl,
 	pl->cur_interface = link_state.interface;
 	pl->ops->mac_link_up(pl->config, pl->link_an_mode,
 			     pl->cur_interface, pl->phydev);
-
+	printk (KERN_INFO "%s  ---\n",__func__);
 	if (ndev)
 		netif_carrier_on(ndev);
 
@@ -454,6 +464,11 @@ static void phylink_mac_link_up(struct phylink *pl,
 		     phy_speed_to_str(link_state.speed),
 		     phy_duplex_to_str(link_state.duplex),
 		     phylink_pause_to_str(link_state.pause));
+	printk (KERN_INFO "%s  Link is Up - %s/%s - flow control %s\n",
+		__func__, phy_speed_to_str(link_state.speed), 
+		phy_duplex_to_str(link_state.duplex),
+		phylink_pause_to_str(link_state.pause)
+	);
 }
 
 static void phylink_mac_link_down(struct phylink *pl)
@@ -724,6 +739,12 @@ static int phylink_bringup_phy(struct phylink *pl, struct phy_device *phy)
 	struct phylink_link_state config;
 	__ETHTOOL_DECLARE_LINK_MODE_MASK(supported);
 	int ret;
+	char phy_name[16];
+
+
+	printk (KERN_INFO "%s   ---\n", __func__);
+	strcpy (phy_name , "Marvell 88E1512") ;
+	printk (KERN_INFO  "%s  name - %s  \n", __func__, phy_name);
 
 	memset(&config, 0, sizeof(config));
 	linkmode_copy(supported, phy->supported);
@@ -751,7 +772,8 @@ static int phylink_bringup_phy(struct phylink *pl, struct phy_device *phy)
 
 	phylink_info(pl,
 		     "PHY [%s] driver [%s]\n", dev_name(&phy->mdio.dev),
-		     phy->drv->name);
+		     /*phy->drv->name);*/
+		     phy_name);
 
 	mutex_lock(&phy->lock);
 	mutex_lock(&pl->state_mutex);
@@ -796,6 +818,11 @@ static int __phylink_connect_phy(struct phylink *pl, struct phy_device *phy,
 	if (ret)
 		phy_detach(phy);
 
+	printk(KERN_INFO  "%s   returned - %d \n",__func__, ret);
+
+
+
+
 	return ret;
 }
 
@@ -816,6 +843,8 @@ static int __phylink_connect_phy(struct phylink *pl, struct phy_device *phy,
  */
 int phylink_connect_phy(struct phylink *pl, struct phy_device *phy)
 {
+	printk (KERN_INFO "%s  ---\n",__func__);
+
 	/* Use PHY device/driver interface */
 	if (pl->link_interface == PHY_INTERFACE_MODE_NA) {
 		pl->link_interface = phy->interface;
@@ -845,6 +874,8 @@ int phylink_of_phy_connect(struct phylink *pl, struct device_node *dn,
 	struct phy_device *phy_dev;
 	int ret;
 
+	printk (KERN_INFO "%s   ---\n",__func__);
+
 	/* Fixed links and 802.3z are handled without needing a PHY */
 	if (pl->link_an_mode == MLO_AN_FIXED ||
 	    (pl->link_an_mode == MLO_AN_INBAND &&
@@ -863,15 +894,23 @@ int phylink_of_phy_connect(struct phylink *pl, struct device_node *dn,
 		return 0;
 	}
 
-	phy_dev = of_phy_attach(pl->netdev, phy_node, flags,
-				pl->link_interface);
+        printk (KERN_INFO  "%s  phy_node name: %s\n",__func__,phy_node->full_name);
+	printk (KERN_INFO  "%s  phy link interface - %d\n", __func__, pl->link_interface);
+
+	phy_dev = of_phy_attach(pl->netdev, phy_node, flags, pl->link_interface);
 	/* We're done with the phy_node handle */
 	of_node_put(phy_node);
+        if (phy_dev) {
+          printk (KERN_INFO "%s:   phydev speed - %d\n",__func__,phy_dev->speed);
+        }
 
 	if (!phy_dev)
 		return -ENODEV;
 
 	ret = phylink_bringup_phy(pl, phy_dev);
+
+	printk   (KERN_INFO  "%s       phylink_bringup_phy returned - %d \n",__func__,ret);
+
 	if (ret)
 		phy_detach(phy_dev);
 
@@ -1804,6 +1843,8 @@ static void phylink_sfp_link_up(void *upstream)
 static int phylink_sfp_connect_phy(void *upstream, struct phy_device *phy)
 {
 	struct phylink *pl = upstream;
+	printk (KERN_INFO "%s  start--- \n",__func__);
+
 
 	return __phylink_connect_phy(upstream, phy, pl->link_config.interface);
 }
