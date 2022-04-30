@@ -40,6 +40,8 @@
 
 #define MII_MARVELL_PHY_PAGE		    22
 
+#define MARVELL_PHY_ID_88E1512		    0x01410dd6
+
 #define MII_MARVELL_COPPER_PAGE		    0x00
 #define MII_MARVELL_FIBER_PAGE		    0x01
 #define MII_MARVELL_MSCR_PAGE		    0x02
@@ -964,7 +966,7 @@ static int m88e1510_config_init(struct phy_device *phydev)
 				// set RGMII to AUTO MEDIA DETECT (media mode)
 				temp |= MII_88E1512_GEN_CTRL_REG_1_MODE_RGMII_TO_AUTO_MEDIA_DETECT_MEDIA_MODE;
 
-				print (KERN_INFO  "%s  - write value %d to register %d \n",
+				printk (KERN_INFO  "%s  - write value %d to register %d \n",
 					__func__, temp, MII_88E1512_GEN_CTRL_REG_1);
 
 				err = phy_write(phydev, MII_88E1512_GEN_CTRL_REG_1, temp);
