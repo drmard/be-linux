@@ -147,6 +147,7 @@ static const struct of_device_id whitelist_phys[] = {
 	{ .compatible = "marvell,88e1310", },
 	{ .compatible = "marvell,88E1510", },
 	{ .compatible = "marvell,88E1514", },
+	{ .compatible = "marvell,88E1512", },
 	{ .compatible = "moxa,moxart-rtl8201cp", },
 	{}
 };
