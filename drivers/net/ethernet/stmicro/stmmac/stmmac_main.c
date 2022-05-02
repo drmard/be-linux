@@ -1065,8 +1065,8 @@ static int stmmac_phy_setup(struct stmmac_priv *priv)
 		return PTR_ERR(phylink);
         } else {
 	    printk (KERN_INFO "%s phylink is Valid. \n",__func__);
-	    if (phylink->phydev->drv)
-	    printk (KERN_INFO "%s  drv name - %s \n ",__func__,phylink->phydev->drv->name) ;
+	    //if (phylink->phydev->drv)
+	    //printk (KERN_INFO "%s  drv name - %s \n ",__func__,phylink->phydev->drv->name) ;
         }
 
 	priv->phylink = phylink;
