@@ -32,7 +32,7 @@
 #include <linux/of_gpio.h>
 
 MODULE_DESCRIPTION("Marvell Ethernet Transceiver driver");
-MODULE_LICENSE("Proprietary");
+MODULE_LICENSE("GPL v2");
 
 /* 31.F002 Line side mode (ch.3.1.2, pg.46) */
 #define MV_MODE_LINE_SHF			8
