@@ -1485,7 +1485,7 @@ static int m88e1540_set_tunable(struct phy_device *phydev,
 	}
 }
 
-static int 
+
 
 /* The VOD can be out of specification on link up. Poke an
  * undocumented register, in an undocumented page, with a magic value
@@ -1585,7 +1585,7 @@ static int marvell_read_status_page_an(struct phy_device *phydev,
 		return status;
 
 
-	printk (KERN_INFO  "%s:  status - 0x4x \n",__func__,status) ;
+	printk (KERN_INFO  "%s:  status - 0x%4x \n", __func__, status) ;
 
 	printk (KERN_INFO "%s   MII_LPA == %d\n",__func__,MII_LPA);
 
@@ -1647,7 +1647,9 @@ static int marvell_read_status_page_an(struct phy_device *phydev,
 		}
 		
 		printk (KERN_INFO "%s  DUPLEX_FULL == %d \n",__func__,DUPLEX_FULL);
-		printk (KERN_INFO "%s: fiber=%d phydev->speed=%d phydev->pause=%d phydev->asym_pause=%d phydev->duplex\n",
+		printk (
+		KERN_INFO 
+		"%s: fiber=%d phydev->speed=%d phydev->pause=%d phydev->asym_pause=%d phydev->duplex=%d\n",
 		__func__,fiber,phydev->speed,phydev->pause,phydev->asym_pause,phydev->duplex);
 	}
 	return 0;
