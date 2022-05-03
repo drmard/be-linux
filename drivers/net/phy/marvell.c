@@ -555,6 +555,33 @@ static inline u32 linkmode_adv_to_fiber_adv_t(unsigned long *advertise)
 	return result;
 }
 
+static int marvell_e1512_config_set_fiber_speed (struct phy_device *phydev, int speed)
+{
+	int err;
+	int reg ;
+
+	printk (KERN_INFO "%s -     speed == %d \n",__func__, speed) ;
+
+	if (speed == 100)
+		reg = 0x2100;
+	else if (speed == 1000)
+		reg = 0x0140;
+
+	err = marvell_set_page (phydev, /*MII_MARVELL_FIBER_PAGE*/0x1);
+	if (err < 0)
+		return -1;
+
+	err = phy_write (phydev, 0x0, reg);
+	if (err < 0)
+		return err;
+
+
+	err = genphy_soft_reset (phydev);
+	printk (KERN_INFO "%s    genphy_soft_reset returned %d  after try to set speed %d  \n",__func__, err, speed);
+
+	return err;
+}
+
 /**
  * marvell_config_aneg_fiber - restart auto-negotiation or write BMCR
  * @phydev: target phy_device struct
@@ -574,8 +601,7 @@ static int marvell_config_aneg_fiber(struct phy_device *phydev)
 		return genphy_setup_forced(phydev);
 
 	/* Only allow advertising what this PHY supports */
-	linkmode_and(phydev->advertising, phydev->advertising,
-		     phydev->supported);
+	linkmode_and(phydev->advertising, phydev->advertising, phydev->supported);
 
 	/* Setup fiber advertisement */
 	adv = phy_read(phydev, MII_ADVERTISE);
@@ -1060,11 +1086,19 @@ static int m88e1510_config_init(struct phy_device *phydev)
 
 				temp = phy_read(phydev, MII_88E1510_GEN_CTRL_REG_1);
 
-				printk("%s === ETH1: Reg20_Page18 : 0x%x \n", __func__, temp);
+				printk("%s = ETHx: Reg20_Page18 : 0x%x \n", __func__, temp);
 			}
 		}
 	}
 
+	err = marvell_e1512_config_set_fiber_speed (phydev, 100);
+	if (err < 0) {
+		printk (KERN_INFO "%s  cannot set fiber speed == 100 : try set to 1000\n", __func__);
+		err = marvell_e1512_config_set_fiber_speed (phydev, 1000);
+		if (err < 0)
+			printk (KERN_INFO "%s  cannot set fiber speed == 1000 \n", __func__);
+
+	}
 
 old_start:
 
@@ -1451,6 +1485,8 @@ static int m88e1540_set_tunable(struct phy_device *phydev,
 	}
 }
 
+static int 
+
 /* The VOD can be out of specification on link up. Poke an
  * undocumented register, in an undocumented page, with a magic value
  * to fix this.
@@ -1513,6 +1549,8 @@ static int marvell_update_link(struct phy_device *phydev, int fiber)
 {
 	int status;
 
+	printk (KERN_INFO "%s   -   fiber=%d \n",__func__,fiber);
+
 	/* Use the generic register for copper link, or specific
 	 * register for fiber case
 	 */
@@ -1529,6 +1567,9 @@ static int marvell_update_link(struct phy_device *phydev, int fiber)
 		return genphy_update_link(phydev);
 	}
 
+	printk (KERN_INFO  "%s   phydev->link == %d\n", __func__, phydev->link);
+
+
 	return 0;
 }
 
@@ -1542,6 +1583,12 @@ static int marvell_read_status_page_an(struct phy_device *phydev,
 	status = phy_read(phydev, MII_M1011_PHY_STATUS);
 	if (status < 0)
 		return status;
+
+
+	printk (KERN_INFO  "%s:  status - 0x4x \n",__func__,status) ;
+
+	printk (KERN_INFO "%s   MII_LPA == %d\n",__func__,MII_LPA);
+
 
 	lpa = phy_read(phydev, MII_LPA);
 	if (lpa < 0)
@@ -1598,6 +1645,10 @@ static int marvell_read_status_page_an(struct phy_device *phydev,
 				phydev->asym_pause = 0;
 			}
 		}
+		
+		printk (KERN_INFO "%s  DUPLEX_FULL == %d \n",__func__,DUPLEX_FULL);
+		printk (KERN_INFO "%s: fiber=%d phydev->speed=%d phydev->pause=%d phydev->asym_pause=%d phydev->duplex\n",
+		__func__,fiber,phydev->speed,phydev->pause,phydev->asym_pause,phydev->duplex);
 	}
 	return 0;
 }
