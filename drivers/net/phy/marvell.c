@@ -593,12 +593,17 @@ static int marvell_e1512_config_set_fiber_speed (struct phy_device *phydev, int 
  */
 static int marvell_config_aneg_fiber(struct phy_device *phydev)
 {
+
 	int changed = 0;
 	int err;
 	int adv, oldadv;
 
 	if (phydev->autoneg != AUTONEG_ENABLE)
 		return genphy_setup_forced(phydev);
+
+
+printk (KERN_INFO "%s - \n", __func__) ;
+
 
 	/* Only allow advertising what this PHY supports */
 	linkmode_and(phydev->advertising, phydev->advertising, phydev->supported);
@@ -621,6 +626,8 @@ static int marvell_config_aneg_fiber(struct phy_device *phydev)
 		changed = 1;
 	}
 
+printk (KERN_INFO "%s  - after fiber ADVERTISING - adv: %d    oldadv: %d \n",__func__,adv,oldadv);
+
 	if (changed == 0) {
 		/* Advertisement hasn't changed, but maybe aneg was never on to
 		 * begin with?	Or maybe phy was isolated?
@@ -637,8 +644,12 @@ static int marvell_config_aneg_fiber(struct phy_device *phydev)
 	/* Only restart aneg if we are advertising something different
 	 * than we were before.
 	 */
-	if (changed > 0)
+	if (changed > 0) {
+
+		printk (KERN_INFO  "%s   (changed > 0) Setup fiber advertisement - successfull !\n",__func__);
 		changed = genphy_restart_aneg(phydev);
+
+	}
 
 	return changed;
 }
@@ -646,6 +657,8 @@ static int marvell_config_aneg_fiber(struct phy_device *phydev)
 static int m88e1510_config_aneg(struct phy_device *phydev)
 {
 	int err;
+
+	printk (KERN_INFO "%s    - \n",__func__) ;
 
 	err = marvell_set_page(phydev, MII_MARVELL_COPPER_PAGE);
 	if (err < 0)
