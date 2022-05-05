@@ -164,7 +164,7 @@
 #define MII_88E3016_DISABLE_SCRAMBLER	0x0200
 #define MII_88E3016_AUTO_MDIX_CROSSOVER	0x0030
 
-#define MII_88E1510_GEN_CTRL_REG_1		             0x14
+#define MII_88E1510_GEN_CTRL_REG_1		             0x14 // 20
 #define MII_88E1512_GEN_CTRL_REG_1		             0x14 // Register 20
 #define MII_88E1510_GEN_CTRL_REG_1_MODE_MASK	             0x7
 #define MII_88E1512_GEN_CTRL_REG_1_MODE_MASK	             0x7
@@ -951,6 +951,18 @@ static int m88e1318_config_init(struct phy_device *phydev)
 	return marvell_config_init(phydev);
 }
 
+static int e1510_set_mode_011 (struct phy_device *phydev)
+{
+	int err;
+	//int temp;
+	printk (KERN_INFO "%s -  \n",__func__) ;
+	
+	return err;
+}
+ 
+#define E1510_MODE_3_MASK       0x0043    // 0000 0000 0100 0011
+#define E1510_CLEAR_BIT_2       0xfffb              //  1111 1111 1111 1011     8 9 10 11
+
 static int m88e1510_config_init(struct phy_device *phydev)
 {
 	int err,ret;
@@ -966,6 +978,34 @@ static int m88e1510_config_init(struct phy_device *phydev)
 	}
 
 	ret = of_property_read_u32(np, "operating-mode", &mode_num);
+	if (!ret && 0x3 == mode_num) {
+		// mode 3 mask : RGMII (System mode) to Auto Media Detect Copper/100BASE-FX   0x0043      E1510_MODE_3_MASK
+		err = marvell_set_page(phydev, 18);
+		if (err < 0) {
+			printk (KERN_INFO "%s - cannot set PAGE 18 \n",__func__);
+			return err;
+		}
+
+		temp = phy_read(phydev, /*MII_88E1512_GEN_CTRL_REG_1*/20);
+		printk (KERN_INFO "%s         read REG 20_18: 0x%4x \n", __func__, temp);
+
+		// add mask E1510_MODE_3_MASK
+		temp &= E1510_CLEAR_BIT_2;
+		temp |= E1510_MODE_3_MASK;
+
+		// write new value of temp to REG 20_18
+		err = phy_write(phydev, 20, temp);
+		if (err < 0) {
+			printk (
+			KERN_INFO"%s - cannot write mode 3 to register 20\n",__func__);
+		}
+
+		//test that write operation was correct
+		temp = phy_read(phydev, /*MII_88E1512_GEN_CTRL_REG_1*/20);
+		printk (KERN_INFO "%s         read after set MODE 3     REG 20_18: 0x%4x \n", __func__, temp);
+        }
+
+
         if (ret) {
 		printk("%s - cannot get 'operating-mode' property: %d\n",__func__,ret);
 		return ret; 
@@ -989,6 +1029,7 @@ static int m88e1510_config_init(struct phy_device *phydev)
 
 				// add mask
 				temp &= ~MII_88E1512_GEN_CTRL_REG_1_MODE_MASK;
+
 				// set RGMII to AUTO MEDIA DETECT (media mode)
 				temp |= MII_88E1512_GEN_CTRL_REG_1_MODE_RGMII_TO_AUTO_MEDIA_DETECT_MEDIA_MODE;
 
@@ -1028,17 +1069,19 @@ static int m88e1510_config_init(struct phy_device *phydev)
 
 				printk("%s   Register 22: 0x%x \n",__func__,temp);
 
-      				/* In reg 20, should be MODE[2:0] = 0x6 */
+      				/* In reg 20, should be MODE[2:0] = 0x3 */
         			temp = phy_read(phydev, MII_88E1510_GEN_CTRL_REG_1);
          			printk(KERN_INFO "%s :    Reg20_Page18 : 0x%x . === \n",__func__,temp);
 
        				// reset page selection
+				/*
      				err = phy_write(phydev, MII_MARVELL_PHY_PAGE, 0);
 				if (err < 0) {
 					printk  (KERN_INFO "%s cannot reset page 18\n",__func__);
 					return err;
-				}
+				}*****/
 			}
+
 		} else if (0x7 == mode_num) {
 			printk("%s === set RGMII-to-Auto-Detect-Mode mode === \n",__func__);
 
@@ -1086,22 +1129,21 @@ static int m88e1510_config_init(struct phy_device *phydev)
 
 				temp = phy_read(phydev, MII_88E1510_GEN_CTRL_REG_1);
 
+
 				printk("%s = ETHx: Reg20_Page18 : 0x%x \n", __func__, temp);
 			}
 		}
 	}
-
+        /***
 	err = marvell_e1512_config_set_fiber_speed (phydev, 100);
 	if (err < 0) {
 		printk (KERN_INFO "%s  cannot set fiber speed == 100 : try set to 1000\n", __func__);
 		err = marvell_e1512_config_set_fiber_speed (phydev, 1000);
 		if (err < 0)
 			printk (KERN_INFO "%s  cannot set fiber speed == 1000 \n", __func__);
-
-	}
+	} ***/
 
 old_start:
-
 	/* SGMII-to-Copper mode initialization */
 	if (phydev->interface == PHY_INTERFACE_MODE_SGMII) {
 		/* Select page 18 */
@@ -1128,7 +1170,10 @@ old_start:
 			return err;
 	}
 
-	return m88e1318_config_init(phydev);
+	//return m88e1318_config_init(phydev);
+
+
+	marvell_config_init (phydev);
 }
 
 static int m88e1512_config_init(struct phy_device *phydev)
