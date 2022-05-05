@@ -554,7 +554,7 @@ static inline u32 linkmode_adv_to_fiber_adv_t(unsigned long *advertise)
 
 	return result;
 }
-
+/*
 static int marvell_e1512_config_set_fiber_speed (struct phy_device *phydev, int speed)
 {
 	int err;
@@ -567,7 +567,7 @@ static int marvell_e1512_config_set_fiber_speed (struct phy_device *phydev, int 
 	else if (speed == 1000)
 		reg = 0x0140;
 
-	err = marvell_set_page (phydev, /*MII_MARVELL_FIBER_PAGE*/0x1);
+	err = marvell_set_page (phydev, 0x1);  // fibre Page
 	if (err < 0)
 		return -1;
 
@@ -580,7 +580,7 @@ static int marvell_e1512_config_set_fiber_speed (struct phy_device *phydev, int 
 	printk (KERN_INFO "%s    genphy_soft_reset returned %d  after try to set speed %d  \n",__func__, err, speed);
 
 	return err;
-}
+}*/
 
 /**
  * marvell_config_aneg_fiber - restart auto-negotiation or write BMCR
@@ -761,7 +761,6 @@ static void marvell_config_led(struct phy_device *phydev)
 
 static int marvell_config_init(struct phy_device *phydev)
 {
-
 	printk (KERN_INFO "%s start:  setup default LEDs ...  \n",__func__) ;
 
 	/* Set defalut LED */
@@ -963,16 +962,16 @@ static int m88e1318_config_init(struct phy_device *phydev)
 
 	return marvell_config_init(phydev);
 }
-
+/*
 static int e1510_set_mode_011 (struct phy_device *phydev)
 {
 	int err;
-	//int temp;
 	printk (KERN_INFO "%s -  \n",__func__) ;
 	
 	return err;
 }
- 
+
+*/
 #define E1510_MODE_3_MASK       0x0043    // 0000 0000 0100 0011
 #define E1510_CLEAR_BIT_2       0xfffb              //  1111 1111 1111 1011     8 9 10 11
 
@@ -1184,9 +1183,8 @@ old_start:
 	}
 
 	//return m88e1318_config_init(phydev);
+	return marvell_config_init (phydev);
 
-
-	marvell_config_init (phydev);
 }
 
 static int m88e1512_config_init(struct phy_device *phydev)
