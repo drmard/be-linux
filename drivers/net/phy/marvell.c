@@ -997,21 +997,18 @@ static int m88e1510_config_init(struct phy_device *phydev)
 			printk (KERN_INFO "%s - cannot set PAGE 18 \n",__func__);
 			return err;
 		}
-
 		temp = phy_read(phydev, /*MII_88E1512_GEN_CTRL_REG_1*/20);
 		printk (KERN_INFO "%s         read REG 20_18: 0x%4x \n", __func__, temp);
 
 		// add mask E1510_MODE_3_MASK
 		temp &= E1510_CLEAR_BIT_2;
 		temp |= E1510_MODE_3_MASK;
-
 		// write new value of temp to REG 20_18
 		err = phy_write(phydev, 20, temp);
 		if (err < 0) {
 			printk (
 			KERN_INFO"%s - cannot write mode 3 to register 20\n",__func__);
 		}
-
 		//test that write operation was correct
 		temp = phy_read(phydev, /*MII_88E1512_GEN_CTRL_REG_1*/20);
 		printk (KERN_INFO "%s         read after set MODE 3     REG 20_18: 0x%4x \n", __func__, temp);
@@ -1020,7 +1017,7 @@ static int m88e1510_config_init(struct phy_device *phydev)
 
         if (ret) {
 		printk("%s - cannot get 'operating-mode' property: %d\n",__func__,ret);
-		return ret; 
+		return ret;
 	} else {
 		// mode 'RGMII-to-Auto-Media-Detect(Media Mode)'		
 		if (0x6 == mode_num) {
