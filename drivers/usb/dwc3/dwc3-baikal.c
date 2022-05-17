@@ -15,26 +15,125 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/acpi.h>
 #include <linux/clk.h>
+#include <linux/irq.h>
+#include <linux/clk-provider.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/extcon.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
+#include <linux/of.h>
 #include <linux/dma-mapping.h>
 #include <linux/usb/usb_phy_generic.h>
 #include <linux/io.h>
+#include <linux/iopoll.h>
+#include <linux/reset.h>
+#include <linux/usb/of.h>
 #include <linux/of_platform.h>
+
+#include "core.h"
+
+#define QSCRATCH_HS_PHY_CTRL			0x10
+#define UTMI_OTG_VBUS_VALID			BIT(20)
+#define SW_SESSVLD_SEL				BIT(28)
+
+#define QSCRATCH_SS_PHY_CTRL			0x30
+#define LANE0_PWR_PRESENT			BIT(24)
+
+#define QSCRATCH_GENERAL_CFG			0x08
+#define PIPE_UTMI_CLK_SEL			BIT(0)
+#define PIPE3_PHYSTATUS_SW			BIT(3)
+#define PIPE_UTMI_CLK_DIS			BIT(8)
+
+#define PWR_EVNT_IRQ_STAT_REG			0x58
+#define PWR_EVNT_LPM_IN_L2_MASK			BIT(4)
+#define PWR_EVNT_LPM_OUT_L2_MASK		BIT(5)
+
+#define SDM845_QSCRATCH_BASE_OFFSET		0xf8800
+#define SDM845_QSCRATCH_SIZE			0x400
+#define SDM845_DWC3_CORE_SIZE			0xcd00
+
+struct dwc3_acpi_pdata {
+	u32			qscratch_base_offset;
+	u32			qscratch_base_size;
+	u32			dwc3_core_base_size;
+};
 
 struct dwc3_baikal {
 	struct device	*dev;
+	void __iomem    *qscratch_base ;
+	struct platform_device	*dwc3;
+	int  num_clocks ;			
 	struct clk	*clk;
+	const struct dwc3_acpi_pdata  *acpi_pdata ;
+	enum usb_dr_mode  mode;
+	bool		is_suspended ;
+	bool		pm_suspended ;
 };
 
-static int be_dwc3_probe(struct platform_device *pdev)
+static inline void
+dwc3_be_setbits(void __iomem *base, u32 offset, u32 val) {
+	u32 reg;
+	reg = readl(base + offset);
+	reg |= val;
+	writel(reg, base + offset);
+	/* ensure that above write is through */
+	readl(base + offset);
+}
+
+static inline void
+dwc3_be_clrbits(void __iomem *base, u32 offset, u32 val) {
+	u32 reg;
+	reg = readl(base + offset);
+	reg &= ~val;
+	writel(reg, base + offset);
+	/* ensure that above write is through */
+	readl(base + offset);
+}
+static void
+dwc3_be_vbus_override_enable(struct dwc3_baikal *be, bool enable) {
+	if (enable) {
+		dwc3_be_setbits(/*qcom*/be->qscratch_base, QSCRATCH_SS_PHY_CTRL, LANE0_PWR_PRESENT);
+		dwc3_be_setbits(/*qcom*/be->qscratch_base, QSCRATCH_HS_PHY_CTRL, UTMI_OTG_VBUS_VALID | SW_SESSVLD_SEL);
+	} else {
+		dwc3_be_clrbits(/*qcom*/be->qscratch_base, QSCRATCH_SS_PHY_CTRL, LANE0_PWR_PRESENT);
+		dwc3_be_clrbits(/*qcom*/be->qscratch_base, QSCRATCH_HS_PHY_CTRL, UTMI_OTG_VBUS_VALID | SW_SESSVLD_SEL);
+	}
+}
+static int dwc3_be_of_register_core (struct platform_device *pdev) {
+	int ret;
+	struct dwc3_baikal *be = platform_get_drvdata(pdev);
+	struct device_node *np = pdev->dev.of_node , &dwc3_np;
+	struct device   *dev = &pdev->dev ;
+
+	dwc3_np = of_get_child_by_name (np, "dwc3");
+	if (!dwc3_np)  {
+		printk (KERN_INFO "%s: cannot get child node for BE usb node \n",__func__);
+		return -ENODEV ;
+	}
+	ret = of_platform_populate (np,NULL,NULL,dev) ;
+	if (ret) {
+		printk (KERN_INFO "%s: failed registering dwc3 core , error - %d \n",__func__,ret);
+		return  ret;
+	}
+	be->dwc3 =
+		of_find_device_by_node (dwc3_np) ;
+	if(!be->dwc3) {
+		printk (KERN_INFO "%s: cant get dwc3 platform device \n",__func__);
+		return -ENODEV ;
+	}
+	return 0;
+}
+
+static int
+be_dwc3_probe(struct platform_device *pdev)
 {
 	struct device		*dev = &pdev->dev;
 	struct device_node	*node = pdev->dev.of_node;
 	struct dwc3_baikal	*dwc;
+	struct resource         *res, *parent_res = NULL ;
 	int			ret;
 
 	dwc = devm_kzalloc(dev, sizeof(*dwc), GFP_KERNEL);
@@ -48,56 +147,69 @@ static int be_dwc3_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, dwc);
-	dwc->dev = dev;
+	dwc->dev = &pdev->dev ;       //dev;
 
 	dwc->clk = devm_clk_get(dwc->dev, "usb");
 	if (IS_ERR(dwc->clk)) {
-		dev_err(dev, "no interface clk specified\n");
+		//dev_err(dev, "no interface clk specified  \n");
+		printk (KERN_INFO "%s  no interface clk specified \n",__func__);
 		return -EINVAL;
 	}
-
 	ret = clk_prepare_enable(dwc->clk);
 	if (ret < 0) {
-		dev_err(dwc->dev, "unable to enable usb clock\n");
+		//dev_err(dwc->dev, "unable to enable usb clock\n");
+		printk (KERN_INFO  "%s  unable to enable usb clock \n",__func__) ;
 		return ret;
 	}
 
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (np) {
+		parent_res = res;
+	} else {
+		parent_res = kmemdup(res, sizeof(struct resource), GFP_KERNEL);
+		if (!parent_res)
+			return -ENOMEM;
+		parent_res->start = res->start + /*qcom*/dwc->acpi_pdata->qscratch_base_offset;
+		parent_res->end = parent_res->start + /*qcom*/dwc->acpi_pdata->qscratch_base_size;
+	}
+
 	if (node) {
-			ret = of_platform_populate(node, NULL, NULL, dev);
-			if (ret) {
-				dev_err(&pdev->dev, "failed to create dwc3 core\n");
-				goto __error;
-			}
+		//ret = of_platform_populate(node, NULL, NULL, dev);
+		ret = dwc3_be_of_register_core (pdev) ;  // should be implement
+		if (ret) {
+			dev_err(&pdev->dev, "failed to register dwc3 core\n");
+			goto __error;
+		}
 	} else {
 		dev_err(dev, "no device node, failed to add dwc3 core\n");
 		ret = -ENODEV;
 		goto __error;
 	}
 
+	dwc->mode =
+		usb_get_dr_mode (&be->dwc3->dev) ;
+	if (dwc->mode == USB_DR_MODE_PERIPHERAL)
+		dwc3_be_vbus_override_enable(dwc, true);
+
 	return 0;
 
 __error:
 	clk_disable_unprepare(dwc->clk);
-
 	return ret;
 }
 
 static int be_dwc3_remove_core(struct device *dev, void *c)
 {
 	struct platform_device *pdev = to_platform_device(dev);
-
 	platform_device_unregister(pdev);
-
 	return 0;
 }
 
 static int be_dwc3_remove(struct platform_device *pdev)
 {
 	struct dwc3_baikal *dwc = platform_get_drvdata(pdev);
-
 	device_for_each_child(&pdev->dev, NULL, be_dwc3_remove_core);
 	clk_disable_unprepare(dwc->clk);
-
 	platform_set_drvdata(pdev, NULL);
 
 	return 0;
