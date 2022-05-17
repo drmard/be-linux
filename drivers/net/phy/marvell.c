@@ -1601,8 +1601,7 @@ static void fiber_lpa_mod_linkmode_lpa_t(unsigned long *advertising, u32 lpa)
 static int marvell_update_link(struct phy_device *phydev, int fiber)
 {
 	int status;
-
-	printk (KERN_INFO "%s   -   fiber=%d \n",__func__,fiber);
+	//printk (KERN_INFO "%s   -   fiber=%d \n",__func__,fiber);
 
 	/* Use the generic register for copper link, or specific
 	 * register for fiber case
@@ -1620,9 +1619,7 @@ static int marvell_update_link(struct phy_device *phydev, int fiber)
 		return genphy_update_link(phydev);
 	}
 
-	printk (KERN_INFO  "%s   phydev->link == %d\n", __func__, phydev->link);
-
-
+	//printk (KERN_INFO  "%s   phydev->link == %d\n", __func__, phydev->link);
 	return 0;
 }
 
@@ -1638,10 +1635,8 @@ static int marvell_read_status_page_an(struct phy_device *phydev,
 		return status;
 
 
-	printk (KERN_INFO  "%s:  status - 0x%4x \n", __func__, status) ;
-
-	printk (KERN_INFO "%s   MII_LPA == %d\n",__func__,MII_LPA);
-
+	//printk (KERN_INFO  "%s:  status - 0x%4x \n", __func__, status) ;
+	//printk (KERN_INFO "%s   MII_LPA == %d\n",__func__,MII_LPA);
 
 	lpa = phy_read(phydev, MII_LPA);
 	if (lpa < 0)
@@ -1698,12 +1693,10 @@ static int marvell_read_status_page_an(struct phy_device *phydev,
 				phydev->asym_pause = 0;
 			}
 		}
-		
-		printk (KERN_INFO "%s  DUPLEX_FULL == %d \n",__func__,DUPLEX_FULL);
-		printk (
-		KERN_INFO 
-		"%s: fiber=%d phydev->speed=%d phydev->pause=%d phydev->asym_pause=%d phydev->duplex=%d\n",
-		__func__,fiber,phydev->speed,phydev->pause,phydev->asym_pause,phydev->duplex);
+		//printk (KERN_INFO "%s  DUPLEX_FULL == %d \n",__func__,DUPLEX_FULL);
+		//printk (KERN_INFO 
+		//"%s: fiber=%d phydev->speed=%d phydev->pause=%d phydev->asym_pause=%d phydev->duplex=%d\n",
+		//__func__,fiber,phydev->speed,phydev->pause,phydev->asym_pause,phydev->duplex);
 	}
 	return 0;
 }
@@ -1809,7 +1802,6 @@ static int marvell_read_status(struct phy_device *phydev)
 	}
 
 	return marvell_read_status_page(phydev, MII_MARVELL_COPPER_PAGE);
-
 error:
 	marvell_set_page(phydev, MII_MARVELL_COPPER_PAGE);
 	return err;
