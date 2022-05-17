@@ -92,6 +92,7 @@ dwc3_be_clrbits(void __iomem *base, u32 offset, u32 val) {
 	/* ensure that above write is through */
 	readl(base + offset);
 }
+
 static void
 dwc3_be_vbus_override_enable(struct dwc3_baikal *be, bool enable) {
 	if (enable) {
@@ -102,10 +103,12 @@ dwc3_be_vbus_override_enable(struct dwc3_baikal *be, bool enable) {
 		dwc3_be_clrbits(/*qcom*/be->qscratch_base, QSCRATCH_HS_PHY_CTRL, UTMI_OTG_VBUS_VALID | SW_SESSVLD_SEL);
 	}
 }
+
 static int dwc3_be_of_register_core (struct platform_device *pdev) {
 	int ret;
+	struct device_node *dwc3_np;
 	struct dwc3_baikal *be = platform_get_drvdata(pdev);
-	struct device_node *np = pdev->dev.of_node , &dwc3_np;
+	struct device_node *np = pdev->dev.of_node ;
 	struct device   *dev = &pdev->dev ;
 
 	dwc3_np = of_get_child_by_name (np, "dwc3");
@@ -131,7 +134,7 @@ static int
 be_dwc3_probe(struct platform_device *pdev)
 {
 	struct device		*dev = &pdev->dev;
-	struct device_node	*node = pdev->dev.of_node;
+	struct device_node	*np  = pdev->dev.of_node;
 	struct dwc3_baikal	*dwc;
 	struct resource         *res, *parent_res = NULL ;
 	int			ret;
@@ -173,7 +176,7 @@ be_dwc3_probe(struct platform_device *pdev)
 		parent_res->end = parent_res->start + /*qcom*/dwc->acpi_pdata->qscratch_base_size;
 	}
 
-	if (node) {
+	if (np) {
 		//ret = of_platform_populate(node, NULL, NULL, dev);
 		ret = dwc3_be_of_register_core (pdev) ;  // should be implement
 		if (ret) {
@@ -181,13 +184,15 @@ be_dwc3_probe(struct platform_device *pdev)
 			goto __error;
 		}
 	} else {
-		dev_err(dev, "no device node, failed to add dwc3 core\n");
+		//dev_err(dev, "no device node, failed to add dwc3 core\n");
+		printk(KERN_INFO "%s no device node, failed to add dwc3 core \n",__func__);
+
 		ret = -ENODEV;
 		goto __error;
 	}
 
 	dwc->mode =
-		usb_get_dr_mode (&be->dwc3->dev) ;
+		usb_get_dr_mode (&dwc->dwc3->dev) ;
 	if (dwc->mode == USB_DR_MODE_PERIPHERAL)
 		dwc3_be_vbus_override_enable(dwc, true);
 
