@@ -153,11 +153,17 @@ be_dwc3_probe(struct platform_device *pdev)
 	dwc->dev = &pdev->dev ;       //dev;
 
 	dwc->clk = devm_clk_get(dwc->dev, "usb");
+	if (dwc->clk == NULL) {
+		printk (KERN_INFO "%s   cannot get clk with id: %s \n",__func__,"usb");    ////xxxx
+		return -13 ;
+	}
+
 	if (IS_ERR(dwc->clk)) {
 		//dev_err(dev, "no interface clk specified  \n");
 		printk (KERN_INFO "%s  no interface clk specified \n",__func__);
 		return -EINVAL;
 	}
+
 	ret = clk_prepare_enable(dwc->clk);
 	if (ret < 0) {
 		//dev_err(dwc->dev, "unable to enable usb clock\n");
