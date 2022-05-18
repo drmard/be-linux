@@ -211,6 +211,7 @@ be_dwc3_probe(struct platform_device *pdev)
 	struct dwc3_baikal	*dwc;
 	struct resource         *res, *parent_res = NULL ;
 	int			ret;
+	int    numbe ;
 
 	dwc = devm_kzalloc(dev, sizeof(*dwc), GFP_KERNEL);
 	if (!dwc)
@@ -236,10 +237,15 @@ be_dwc3_probe(struct platform_device *pdev)
 		printk (KERN_INFO  "%s  unable to enable usb clock \n",__func__) ;
 		return ret;
 	}     ***/
-	ret = dwc3_be_clk_init (dwc, of_clk_get_parent_count(np));
+	numbe = of_clk_get_parent_count (node);
+	if (numbe >= 0)  {
+	ret = dwc3_be_clk_init (dwc, /*of_clk_get_parent_count(node)*/numbe);
 	if (ret) {
 		printk (KERN_INFO "%s     cant init BE clk's   \n",__func__);
 		return  ret;
+	}
+	} else {
+            printk (KERN_INFO "%s   incorrect number of clk's \n", __func__) ;
 	}
 
 	/*********
@@ -252,7 +258,7 @@ be_dwc3_probe(struct platform_device *pdev)
 
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (np) {
+	if (node) {
 		parent_res = res;
 	} else {
 		parent_res = kmemdup(res, sizeof(struct resource), GFP_KERNEL);
@@ -275,7 +281,7 @@ be_dwc3_probe(struct platform_device *pdev)
 		goto __error;
 	}
 
-	dwc->mode = usb_get_dr_mode (&be->dwc3->dev) ;
+	dwc->mode = usb_get_dr_mode (&dwc->dwc3->dev) ;
 
 	if (dwc->mode == USB_DR_MODE_PERIPHERAL)
 		dwc3_be_vbus_override_enable(dwc, true);
@@ -283,7 +289,7 @@ be_dwc3_probe(struct platform_device *pdev)
 	return 0;
 
 __error:
-	clk_disable_unprepare(dwc->clk);
+	//clk_disable_unprepare(dwc->clk);
 	return ret;
 }
 
@@ -298,9 +304,16 @@ static int be_dwc3_remove_core(struct device *dev, void *c)
 
 static int be_dwc3_remove(struct platform_device *pdev)
 {
+	int  i;
 	struct dwc3_baikal *dwc = platform_get_drvdata(pdev);
 	device_for_each_child(&pdev->dev, NULL, be_dwc3_remove_core);
-	clk_disable_unprepare(dwc->clk);
+
+	// disable clk's
+	for (i = dwc->num_clocks - 1; i >= 0; i--)  {
+		clk_disable_unprepare(dwc->clks[i]);
+		clk_put(dwc->clks[i]);
+	}
+
 	platform_set_drvdata(pdev, NULL);
 
 	return 0;
