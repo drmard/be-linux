@@ -55,6 +55,14 @@
 #define SDM845_QSCRATCH_SIZE			0x400
 #define SDM845_DWC3_CORE_SIZE			0xcd00
 
+
+#define  USB3_BASE_ADDRESS               0x002C500000
+
+// This register uses to configure the USB3 PHY and PIPE interface
+#define  GUSB3PIPECTL0                          0xc2c0          //  0000 0001 0011 1110 0000 0000 0000 0010  0x013e0002 
+#define  GUSB3PIPECTL0                          0xc2c4
+
+
 struct dwc3_acpi_pdata {
 	u32			qscratch_base_offset;
 	u32			qscratch_base_size;
@@ -84,6 +92,25 @@ dwc3_be_setbits(void __iomem *base, u32 offset, u32 val) {
 	/* ensure that above write is through */
 	readl(base + offset);
 }
+
+static inline void be_get_ctrl_regs (void __iomem *b, u32 offset)  {
+	u32 reg ;
+	offset = 0x0 ;
+	reg = readl(b + offset) ;
+
+	printk (KERN_INFO "%s    offset:0x%8x    reg: 0x%8x \n",__func__,offset,reg);  // usb3 base
+
+	offset = GUSB3PIPECTL0 ;
+	reg = readl (b + offset);
+	printk (KERN_INFO "%s    offset:0x%8x    reg: 0x%8x \n",__func__,offset,reg);  // ctrl 0
+
+	offset = GUSB3PIPECTL1 ;
+	reg = readl (b + offset);
+	printk (KERN_INFO "%s    offset:0x%8x    reg: 0x%8x \n",__func__,offset,reg);  // ctrl 1
+} 
+
+
+
 
 static inline void
 dwc3_be_clrbits(void __iomem *base, u32 offset, u32 val) {
@@ -163,45 +190,10 @@ static int dwc3_be_clk_init (struct dwc3_baikal   *dwc, int count)
 			clk_put (clk);
 			return ret;
 		}
-		/*qcom*/dwc->clks[i] = clk;
+		dwc->clks[i] = clk;
 	}
 	return 0;
 }
-
-/***
-static int dwc3_qcom_clk_init(struct dwc3_qcom *qcom, int count) {
-	struct device		*dev = qcom->dev;
-	struct device_node	*np = dev->of_node;
-	int			         i;
-	if (!np || !count)   return 0;
-	if (count < 0)       return count;
-	qcom->num_clocks = count;
-	qcom->clks = devm_kcalloc(dev, qcom->num_clocks, sizeof(struct clk *), GFP_KERNEL);
-	if (!qcom->clks)  return -ENOMEM;
-	for (i = 0; i < qcom->num_clocks; i++) {
-		struct clk	*clk;
-		int		ret;
-		clk = of_clk_get(np, i);
-		if (IS_ERR(clk)) {
-			while (--i >= 0)
-				clk_put(qcom->clks[i]);
-			return PTR_ERR(clk);
-		}
-		ret = clk_prepare_enable(clk);
-		if (ret < 0) {
-			while (--i >= 0) {
-				clk_disable_unprepare(qcom->clks[i]);
-				clk_put(qcom->clks[i]);
-			}
-			clk_put(clk);
-			return ret;
-		}
-		qcom->clks[i] = clk;
-	}
-	return 0;
-}     ****/
-
-
 
 static int
 be_dwc3_probe(struct platform_device *pdev)
@@ -224,6 +216,10 @@ be_dwc3_probe(struct platform_device *pdev)
 	}
 	platform_set_drvdata(pdev, dwc);
 	dwc->dev = &pdev->dev ;
+
+
+        //dwc3_be_setbits
+	be_get_ctrl_regs (dwc->qscratch_base,0x0);         //  be->qscratch_base
 
 
 	/***
@@ -298,7 +294,6 @@ static int be_dwc3_remove_core(struct device *dev, void *c)
 	struct platform_device *pdev = to_platform_device(dev);
 
 	platform_device_unregister(pdev);
-
 	return 0;
 }
 
@@ -323,7 +318,13 @@ static const struct of_device_id be_dwc3_of_match[] = {
 	{ .compatible = "be,baikal-dwc3", },
 	{},
 };
+
 MODULE_DEVICE_TABLE(of, be_dwc3_of_match);
+
+static const struct of_device_id usb_extcon_dt_match[] = {
+  { . compatible = "linux,extcon-usb-gpio", },
+  { },
+};
 
 static struct platform_driver be_dwc3_driver = {
 	.probe		= be_dwc3_probe,
@@ -332,6 +333,7 @@ static struct platform_driver be_dwc3_driver = {
 		.name	= "baikal-dwc3",
 		.of_match_table	= be_dwc3_of_match,
 	},
+	.id_table = usb_extcon_platform_dt_match,
 };
 
 module_platform_driver(be_dwc3_driver);
