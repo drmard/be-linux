@@ -60,7 +60,7 @@
 
 // This register uses to configure the USB3 PHY and PIPE interface
 #define  GUSB3PIPECTL0                          0xc2c0          //  0000 0001 0011 1110 0000 0000 0000 0010  0x013e0002 
-#define  GUSB3PIPECTL0                          0xc2c4
+#define  GUSB3PIPECTL1                          0xc2c4
 
 
 struct dwc3_acpi_pdata {
@@ -321,11 +321,6 @@ static const struct of_device_id be_dwc3_of_match[] = {
 
 MODULE_DEVICE_TABLE(of, be_dwc3_of_match);
 
-static const struct of_device_id usb_extcon_dt_match[] = {
-  { . compatible = "linux,extcon-usb-gpio", },
-  { },
-};
-
 static struct platform_driver be_dwc3_driver = {
 	.probe		= be_dwc3_probe,
 	.remove		= be_dwc3_remove,
@@ -333,7 +328,6 @@ static struct platform_driver be_dwc3_driver = {
 		.name	= "baikal-dwc3",
 		.of_match_table	= be_dwc3_of_match,
 	},
-	.id_table = usb_extcon_platform_dt_match,
 };
 
 module_platform_driver(be_dwc3_driver);
