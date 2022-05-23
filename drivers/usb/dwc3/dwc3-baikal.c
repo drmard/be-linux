@@ -93,11 +93,13 @@ dwc3_be_setbits(void __iomem *base, u32 offset, u32 val) {
 	readl(base + offset);
 }
 
-static inline void be_get_ctrl_regs (void __iomem *b, u32 offset)  {
+static inline int  be_get_ctrl_regs (void __iomem *b, u32 offset)  {
 	u32 reg ;
-	offset = 0x0 ;
-	reg = readl(b + offset) ;
+	//offset = 0x0 ;
+	if (!b)
+		return -16;
 
+	reg = readl(b + offset) ;
 	printk (KERN_INFO "%s    offset:0x%8x    reg: 0x%8x \n",__func__,offset,reg);  // usb3 base
 
 	offset = GUSB3PIPECTL0 ;
@@ -107,6 +109,8 @@ static inline void be_get_ctrl_regs (void __iomem *b, u32 offset)  {
 	offset = GUSB3PIPECTL1 ;
 	reg = readl (b + offset);
 	printk (KERN_INFO "%s    offset:0x%8x    reg: 0x%8x \n",__func__,offset,reg);  // ctrl 1
+
+	return 0;
 } 
 
 
@@ -203,11 +207,14 @@ be_dwc3_probe(struct platform_device *pdev)
 	struct dwc3_baikal	*dwc;
 	struct resource         *res, *parent_res = NULL ;
 	int			ret;
-	int    numbe;
+	//int    numbe;
+	resource_size_t size;
 
 	dwc = devm_kzalloc(dev, sizeof(*dwc), GFP_KERNEL);
-	if (!dwc)
+	if (!dwc)  {
+		printk  (KERN_INFO "%s   cannot allocate memory \n",__func__);
 		return -ENOMEM;
+	}
 
 	ret = dma_coerce_mask_and_coherent(dev, DMA_BIT_MASK(64));
 	if (ret) {
@@ -217,7 +224,6 @@ be_dwc3_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, dwc);
 	dwc->dev = &pdev->dev;
 
-	/***
 	dwc->clk = devm_clk_get(dwc->dev, "usb");
 	if (IS_ERR(dwc->clk)) {
 		printk (KERN_INFO "%s  no interface clk specified \n",__func__);
@@ -227,8 +233,10 @@ be_dwc3_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		printk (KERN_INFO  "%s  unable to enable usb clock \n",__func__) ;
 		return ret;
-	}     ***/
+	} 
 
+
+/*
 	numbe = of_clk_get_parent_count (node);
 	if (numbe >= 0)  {
 	  ret = dwc3_be_clk_init (dwc,numbe);
@@ -238,7 +246,9 @@ be_dwc3_probe(struct platform_device *pdev)
 	  }
 	} else {
             printk (KERN_INFO "%s   incorrect number of clk's \n", __func__) ;
-	}
+		return -2;
+	}    */
+
 	/*********
 	ret = dwc3_qcom_clk_init(qcom, of_clk_get_parent_count(np));
 	if (ret) {
@@ -246,17 +256,46 @@ be_dwc3_probe(struct platform_device *pdev)
 		goto reset_assert;
 	}  *******/
 
+
+/***
+
+// Resources are tree-like, allowing nesting etc..
+struct resource {
+	resource_size_t start;
+	resource_size_t end;
+	const char *name;
+	unsigned long flags;
+	unsigned long desc;
+	struct resource *parent, *sibling, *child;
+};
+struct resource *platform_get_resource(struct platform_device *dev, unsigned int type, unsigned int num){
+	u32 i;
+	for (i = 0; i < dev->num_resources; i++) {
+		struct resource *r = &dev->resource[i];
+		if (type == resource_type(r) && num-- == 0)   return r;
+	}
+	return NULL;
+}
+void __iomem *devm_platform_ioremap_resource(struct platform_device *pdev,
+					     unsigned int index){
+	struct resource *res;
+	res = platform_get_resource(pdev, IORESOURCE_MEM, index);
+	return devm_ioremap_resource(&pdev->dev, res);
+}*/
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (node) {
+
+	if (node && res != NULL) {
+		printk  (KERN_INFO "%s  res NAME - %s  start - 0x%16x \n",__func__,res->name, res->start);
 		parent_res = res;
 	} 
 	else
-		return -1;
+		return -13;
+	size = resource_size(res);
+	if (size > 0)
+	printk (KERN_INFO "%s   size of resource with type IORESOURCE_MEM - 0x%16x  \n",__func__,size); 
 
-	dwc->qscratch_base = res->start ;
-	printk (
-	KERN_INFO "%s  dwc->qscratch_base from - platform_get_resource:  0x%16x \n",
-	__func__,dwc->qscratch_base)  ;
+	
+	//printk (KERN_INFO "%s  dwc->qscratch_base from - platform_get_resource:  0x%16x \n",__func__,dwc->qscratch_base)  ;
 
 	
 	if (node) {
@@ -264,15 +303,20 @@ be_dwc3_probe(struct platform_device *pdev)
 		if (ret) {
 			dev_err(&pdev->dev, "failed to register dwc3 core\n");
 			goto __error;
+		} else {
+			printk  (KERN_INFO "%s  dwc3_be_of_register_core - SUCCESS \n",__func__);
 		}
 	}
 
 
-	dwc->qscratch_base =  USB3_BASE_ADDRESS ;
-	// what is dwc->qscratch_base ???
+	dwc->qscratch_base = devm_ioremap_resource (dev, res);
         //dwc3_be_setbits
-	be_get_ctrl_regs (dwc->qscratch_base, 0x0);         //  be->qscratch_base
 
+	if (dwc->qscratch_base != NULL)  {
+		ret =
+		be_get_ctrl_regs (dwc->qscratch_base, 0x0);
+		printk (KERN_INFO "%s  be_get_ctrl_regs returns - %d \n",__func__,ret) ;
+	}
 
 	dwc->mode = usb_get_dr_mode (&dwc->dwc3->dev) ;
 	if (dwc->mode == USB_DR_MODE_PERIPHERAL)  {
@@ -287,7 +331,6 @@ __error:
 static int be_dwc3_remove_core(struct device *dev, void *c)
 {
 	struct platform_device *pdev = to_platform_device(dev);
-
 	platform_device_unregister(pdev);
 	return 0;
 }
