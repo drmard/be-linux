@@ -37,6 +37,12 @@ static int be_dwc3_probe(struct platform_device *pdev)
 	struct dwc3_baikal	*dwc;
 	int			ret;
 
+
+	if (node == NULL) {
+		printk (KERN_INFO "%s   node == NULL \n",__func__) ;
+		return  -1;
+	}
+
 	dwc = devm_kzalloc(dev, sizeof(*dwc), GFP_KERNEL);
 	if (!dwc)
 		return -ENOMEM;
