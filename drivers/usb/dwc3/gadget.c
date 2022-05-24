@@ -3505,6 +3505,8 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 {
 	int ret;
 	int irq;
+	printk (KERN_INFO "%s  --- \n",__func__);
+
 
 	irq = dwc3_gadget_get_irq(dwc);
 	if (irq < 0) {

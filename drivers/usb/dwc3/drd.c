@@ -479,6 +479,8 @@ static struct extcon_dev *dwc3_get_extcon(struct dwc3 *dwc)
 int dwc3_drd_init(struct dwc3 *dwc)
 {
 	int ret, irq;
+	printk  (KERN_INFO "%s   ---\n",__func__) ;
+
 
 	dwc->edev = dwc3_get_extcon(dwc);
 	if (IS_ERR(dwc->edev))

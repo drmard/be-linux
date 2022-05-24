@@ -50,11 +50,16 @@ static int dwc3_get_dr_mode(struct dwc3 *dwc)
 	struct device *dev = dwc->dev;
 	unsigned int hw_mode;
 
+	printk  (KERN_INFO "%s   --- \n",__func__);
+
+
 	if (dwc->dr_mode == USB_DR_MODE_UNKNOWN)
 		dwc->dr_mode = USB_DR_MODE_OTG;
 
 	mode = dwc->dr_mode;
 	hw_mode = DWC3_GHWPARAMS0_MODE(dwc->hwparams.hwparams0);
+
+	printk (KERN_INFO  "%s:    hw_mode - 0x%08x \n",__func__);
 
 	switch (hw_mode) {
 	case DWC3_GHWPARAMS0_MODE_GADGET:
@@ -93,9 +98,11 @@ static int dwc3_get_dr_mode(struct dwc3 *dwc)
 		dev_warn(dev,
 			 "Configuration mismatch. dr_mode forced to %s\n",
 			 mode == USB_DR_MODE_HOST ? "host" : "gadget");
-
 		dwc->dr_mode = mode;
 	}
+	
+	printk (KERN_INFO "%s mode == 0x%x (USB_DR_MODE_PERIPHERAL == 2)\n",
+	__func__,(unsigned int)mode);
 
 	return 0;
 }
@@ -575,6 +582,8 @@ static int dwc3_phy_setup(struct dwc3 *dwc)
 	u32 reg;
 
 	reg = dwc3_readl(dwc->regs, DWC3_GUSB3PIPECTL(0));
+	// add debug print
+	printk (KERN_INFO "%s reg DWC3_GUSB3PIPECTL0 : 0x%08x \n",__func__,reg) ;
 
 	/*
 	 * Make sure UX_EXIT_PX is cleared as that causes issues with some
@@ -588,14 +597,24 @@ static int dwc3_phy_setup(struct dwc3 *dwc)
 	 * will be '0' when the core is reset. Application needs to set it
 	 * to '1' after the core initialization is completed.
 	 */
-	if (dwc->revision > DWC3_REVISION_194A)
+	if (dwc->revision > DWC3_REVISION_194A) {
+		printk (KERN_INFO "%s  rev > DWC3_REVISION_194A \n",__func__) ;
 		reg |= DWC3_GUSB3PIPECTL_SUSPHY;
 
-	if (dwc->u2ss_inp3_quirk)
+	}
+
+	if (dwc->u2ss_inp3_quirk) {
+		printk (KERN_INFO "%s  add flag DWC3_GUSB3PIPECTL_U2SSINP3OK == 0x%08x\n",
+		__func__,DWC3_GUSB3PIPECTL_U2SSINP3OK);   // 0x20000000
 		reg |= DWC3_GUSB3PIPECTL_U2SSINP3OK;
 
-	if (dwc->dis_rxdet_inp3_quirk)
-		reg |= DWC3_GUSB3PIPECTL_DISRXDETINP3;
+	}
+
+	if (dwc->dis_rxdet_inp3_quirk) {
+		printk (KERN_INFO  "%s add flaf DWC3_GUSB3PIPECTL_DISRXDETINP3 == 0x%08x\n",
+		__func__,DWC3_GUSB3PIPECTL_DISRXDETINP3) ;
+		reg |= DWC3_GUSB3PIPECTL_DISRXDETINP3;   // bit 28    - 0x10000000
+	}
 
 	if (dwc->req_p1p2p3_quirk)
 		reg |= DWC3_GUSB3PIPECTL_REQP1P2P3;
@@ -687,6 +706,8 @@ static int dwc3_phy_setup(struct dwc3 *dwc)
 
 	dwc3_writel(dwc->regs, DWC3_GUSB2PHYCFG(0), reg);
 
+	printk (KERN_INFO "%s   return 0\n",__func__) ;
+
 	return 0;
 }
 
@@ -712,6 +733,9 @@ static bool dwc3_core_is_valid(struct dwc3 *dwc)
 	u32 reg;
 
 	reg = dwc3_readl(dwc->regs, DWC3_GSNPSID);
+	//   Global Synopsys ID Register
+	printk (KERN_INFO "%s  reg DWC3_GSNPSID == 0x%08x \n",__func__,reg);
+
 
 	/* This should read as U3 followed by revision number */
 	if ((reg & DWC3_GSNPSID_MASK) == 0x55330000) {
@@ -1142,6 +1166,8 @@ static int dwc3_core_get_phy(struct dwc3 *dwc)
 			return ret;
 		} else {
 			dev_err(dev, "no usb3 phy configured\n");
+			printk  (KERN_INFO  "%s   no usb3 phy configured:    ret == %d\n",__func__,ret);
+
 			return ret;
 		}
 	}
@@ -1186,8 +1212,12 @@ static int dwc3_core_init_mode(struct dwc3 *dwc)
 		}
 		break;
 	case USB_DR_MODE_OTG:
+		printk  (KERN_INFO "%s   USB_DR_MODE_OTG init  \n",__func__) ;
 		INIT_WORK(&dwc->drd_work, __dwc3_set_mode);
 		ret = dwc3_drd_init(dwc);
+
+		printk (KERN_INFO "%s   dwc3_drd_init() returned  - %d\n",__func__,ret);
+
 		if (ret) {
 			if (ret != -EPROBE_DEFER)
 				dev_err(dev, "failed to initialize dual-role\n");
@@ -1383,6 +1413,9 @@ static void dwc3_check_params(struct dwc3 *dwc)
 	case USB_SPEED_HIGH:
 	case USB_SPEED_SUPER:
 	case USB_SPEED_SUPER_PLUS:
+		if (dwc->maximum_speed == USB_SPEED_SUPER || dwc->maximum_speed == USB_SPEED_SUPER_PLUS)
+		printk (KERN_INFO "%s   dwc->maximum_speed == USB_SPEED_SUPER\n",__func__);
+
 		break;
 	default:
 		dev_err(dev, "invalid maximum_speed parameter %d\n",

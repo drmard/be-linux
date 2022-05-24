@@ -711,6 +711,10 @@ struct phy *devm_phy_get(struct device *dev, const char *string)
 {
 	struct phy **ptr, *phy;
 
+	printk (KERN_INFO "%s   phy == [%s] \n",__func__,string) ;
+
+
+
 	ptr = devres_alloc(devm_phy_release, sizeof(*ptr), GFP_KERNEL);
 	if (!ptr)
 		return ERR_PTR(-ENOMEM);
